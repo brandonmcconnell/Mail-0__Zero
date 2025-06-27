@@ -1,5 +1,9 @@
 import { getZeroAgent } from './server-utils';
 import { upsertContacts } from './contacts-cache';
+import type { IGetThreadResponse } from './driver/types';
+import type { ParsedMessage, Sender } from '../types';
+
+type ThreadSummary = { id: string; historyId: string | null; $raw?: unknown };
 
 export async function buildContactsIndex(connectionId: string) {
   console.log(`[ContactsIndexer] Starting full index for ${connectionId}`);
@@ -27,25 +31,25 @@ export async function buildContactsIndex(connectionId: string) {
       let pageCount = 0;
       
       do {
-        const batch = await agent.list({
+        const batch = (await agent.list({
           folder,
           query: '',
           maxResults: 100,
           pageToken: cursor,
-        });
+        })) as { threads: ThreadSummary[]; nextPageToken: string | null };
         
-        const threads = (batch as any).threads || [];
+        const threads: ThreadSummary[] = batch.threads || [];
         if (!threads.length) break;
         
         await Promise.allSettled(
-          threads.map(async (thread: any) => {
+          threads.map(async (thread: ThreadSummary) => {
             try {
-              const threadData = await agent.get(thread.id);
-              threadData.messages.forEach((message: any) => {
+              const threadData: IGetThreadResponse = await agent.get(thread.id);
+              threadData.messages.forEach((message: ParsedMessage) => {
                 if (folder === 'sent') {
-                  (message.to || []).forEach((r: any) => addEmail(r.email, r.name, 3));
-                  (message.cc || []).forEach((r: any) => addEmail(r.email, r.name, 2));
-                  (message.bcc || []).forEach((r: any) => addEmail(r.email, r.name, 2));
+                  (message.to || []).forEach((r: Sender) => addEmail(r.email, r.name, 3));
+                  (message.cc || []).forEach((r: Sender) => addEmail(r.email, r.name, 2));
+                  (message.bcc || []).forEach((r: Sender) => addEmail(r.email, r.name, 2));
                 }
                 if (message.sender?.email) {
                   addEmail(message.sender.email, message.sender.name, 1);
@@ -58,7 +62,7 @@ export async function buildContactsIndex(connectionId: string) {
         
         totalProcessed += threads.length;
         pageCount++;
-        cursor = (batch as any).cursor || '';
+        cursor = batch.nextPageToken || '';
         
         if (totalProcessed % 500 === 0) {
           console.log(`[ContactsIndexer] Processed ${totalProcessed} threads, saving checkpoint...`);
