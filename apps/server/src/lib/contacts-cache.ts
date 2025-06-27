@@ -41,9 +41,12 @@ export async function upsertContacts(userId: string, contacts: { email: string; 
 export async function suggestContacts(userId: string, query: string, limit = 10) {
   const contacts = await getContacts(userId);
   const lower = query.toLowerCase();
-  const filtered = contacts.filter(
-    (c) => c.email.toLowerCase().startsWith(lower) || (c.name && c.name.toLowerCase().startsWith(lower)),
-  );
+  const filtered = lower
+    ? contacts.filter(
+        (c) =>
+          c.email.toLowerCase().startsWith(lower) || c.name?.toLowerCase().startsWith(lower),
+      )
+    : contacts;
   filtered.sort((a, b) => b.freq - a.freq || b.last - a.last);
   return filtered.slice(0, limit).map(({ email, name }) => ({ email, name, displayText: name ? `${name} <${email}>` : email }));
 }

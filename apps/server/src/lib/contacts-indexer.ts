@@ -18,7 +18,9 @@ export async function buildContactsIndex(connectionId: string) {
 
   let totalProcessed = 0;
   
-  for (const folder of ['sent', 'inbox', 'all']) {
+  const foldersToProcess = ['inbox', 'sent', 'draft', 'trash'];
+
+  for (const folder of foldersToProcess) {
     try {
       console.log(`[ContactsIndexer] Processing ${folder}...`);
       let cursor = '';
