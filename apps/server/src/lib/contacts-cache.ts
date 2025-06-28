@@ -7,7 +7,7 @@ export interface ContactEntry {
   last: number;
 }
 
-const KV = (env as any).CONTACTS_KV as KVNamespace;
+const KV = (env).CONTACTS_KV as KVNamespace;
 
 const keyForUser = (userId: string) => `contacts:${userId}`;
 
