@@ -210,3 +210,18 @@ export const oauthConsent = createTable('oauth_consent', {
   updatedAt: timestamp('updated_at'),
   consentGiven: boolean('consent_given'),
 });
+
+export const emailTemplate = createTable('email_template', {
+  id: text('id').primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  subject: text('subject'),
+  body: text('body'),
+  to: jsonb('to'),
+  cc: jsonb('cc'),
+  bcc: jsonb('bcc'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});

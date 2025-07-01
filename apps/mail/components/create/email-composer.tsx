@@ -42,6 +42,7 @@ import { ImageCompressionSettings } from './image-compression-settings';
 import { compressImages } from '@/lib/image-compression';
 import type { ImageQuality } from '@/lib/image-compression';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { TemplateButton } from './template-button';
 
 type ThreadContent = {
   from: string;
@@ -86,8 +87,8 @@ const schema = z.object({
   message: z.string().min(1),
   attachments: z.array(z.any()).optional(),
   headers: z.any().optional(),
-  cc: z.array(z.string().email()).optional(),
-  bcc: z.array(z.string().email()).optional(),
+  cc: z.array(z.string().email()).default([]),
+  bcc: z.array(z.string().email()).default([]),
   threadId: z.string().optional(),
   fromEmail: z.string().optional(),
 });
@@ -1297,6 +1298,15 @@ export function EmailComposer({
               <Plus className="h-3 w-3 fill-[#9A9A9A]" />
               <span className="hidden px-0.5 text-sm md:block">Add</span>
             </Button>
+            <TemplateButton
+              editor={editor}
+              subject={subjectInput}
+              setSubject={(value) => setValue('subject', value)}
+              to={toEmails}
+              cc={ccEmails}
+              bcc={bccEmails}
+              setRecipients={(field, val) => setValue(field, val)}
+            />
             <Input
               type="file"
               id="attachment-input"

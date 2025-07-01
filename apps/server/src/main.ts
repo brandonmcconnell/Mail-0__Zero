@@ -13,6 +13,7 @@ import {
   userHotkeys,
   userSettings,
   writingStyleMatrix,
+  emailTemplate,
 } from './db/schema';
 import { env, WorkerEntrypoint, DurableObject, RpcTarget } from 'cloudflare:workers';
 import { getZeroAgent, getZeroDB, verifyToken } from './lib/server-utils';
@@ -170,6 +171,26 @@ export class DbRpcDO extends RpcTarget {
     updatingInfo: Partial<typeof connection.$inferInsert>,
   ) {
     return await this.mainDo.updateConnection(connectionId, updatingInfo);
+  }
+
+  // Template Methods
+  async listEmailTemplates(): Promise<(typeof emailTemplate.$inferSelect)[]> {
+    return await this.mainDo.findManyEmailTemplates(this.userId);
+  }
+
+  async createEmailTemplate(payload: Omit<typeof emailTemplate.$inferInsert, 'userId'>) {
+    return await this.mainDo.createEmailTemplate(this.userId, payload);
+  }
+
+  async deleteEmailTemplate(templateId: string) {
+    return await this.mainDo.deleteEmailTemplate(this.userId, templateId);
+  }
+
+  async updateEmailTemplate(
+    templateId: string,
+    data: Partial<typeof emailTemplate.$inferInsert>,
+  ) {
+    return await this.mainDo.updateEmailTemplate(this.userId, templateId, data);
   }
 }
 
@@ -487,6 +508,44 @@ class ZeroDB extends DurableObject<Env> {
       .update(connection)
       .set(updatingInfo)
       .where(eq(connection.id, connectionId));
+  }
+
+  async findManyEmailTemplates(userId: string): Promise<(typeof emailTemplate.$inferSelect)[]> {
+    return await this.db.query.emailTemplate.findMany({
+      where: eq(emailTemplate.userId, userId),
+      orderBy: desc(emailTemplate.updatedAt),
+    });
+  }
+
+  async createEmailTemplate(userId: string, payload: Omit<typeof emailTemplate.$inferInsert, 'userId'>) {
+    return await this.db
+      .insert(emailTemplate)
+      .values({
+        ...payload,
+        userId,
+        id: crypto.randomUUID(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+  }
+
+  async deleteEmailTemplate(userId: string, templateId: string) {
+    return await this.db
+      .delete(emailTemplate)
+      .where(and(eq(emailTemplate.id, templateId), eq(emailTemplate.userId, userId)));
+  }
+
+  async updateEmailTemplate(
+    userId: string,
+    templateId: string,
+    data: Partial<typeof emailTemplate.$inferInsert>,
+  ) {
+    return await this.db
+      .update(emailTemplate)
+      .set({ ...data, updatedAt: new Date() })
+      .where(and(eq(emailTemplate.id, templateId), eq(emailTemplate.userId, userId)))
+      .returning();
   }
 }
 
