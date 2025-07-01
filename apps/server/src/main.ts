@@ -173,7 +173,6 @@ export class DbRpcDO extends RpcTarget {
     return await this.mainDo.updateConnection(connectionId, updatingInfo);
   }
 
-  // Template Methods
   async listEmailTemplates(): Promise<(typeof emailTemplate.$inferSelect)[]> {
     return await this.mainDo.findManyEmailTemplates(this.userId);
   }

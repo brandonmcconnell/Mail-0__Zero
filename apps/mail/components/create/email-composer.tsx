@@ -87,8 +87,8 @@ const schema = z.object({
   message: z.string().min(1),
   attachments: z.array(z.any()).optional(),
   headers: z.any().optional(),
-  cc: z.array(z.string().email()).default([]),
-  bcc: z.array(z.string().email()).default([]),
+  cc: z.array(z.string().email()).optional(),
+  bcc: z.array(z.string().email()).optional(),
   threadId: z.string().optional(),
   fromEmail: z.string().optional(),
 });
@@ -1303,8 +1303,8 @@ export function EmailComposer({
               subject={subjectInput}
               setSubject={(value) => setValue('subject', value)}
               to={toEmails}
-              cc={ccEmails}
-              bcc={bccEmails}
+              cc={ccEmails ?? []}
+              bcc={bccEmails ?? []}
               setRecipients={(field, val) => setValue(field, val)}
             />
             <Input

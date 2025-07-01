@@ -71,7 +71,7 @@ const TemplateButtonComponent: React.FC<TemplateButtonProps> = ({
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [search, setSearch] = useState('');
-  // Use deferred value so heavy filtering runs in background
+
   const deferredSearch = useDeferredValue(search);
 
   const filteredTemplates = useMemo(() => {
@@ -176,7 +176,6 @@ const TemplateButtonComponent: React.FC<TemplateButtonProps> = ({
                           if (!confirmDelete) return;
                           try {
                             await deleteTemplateMutation({ id: t.id });
-                            // Optimistically remove
                             queryClient.setQueryData(trpc.templates.list.queryKey(), (old: TemplatesQueryData) => {
                               if (!old?.templates) return old;
                               return {
