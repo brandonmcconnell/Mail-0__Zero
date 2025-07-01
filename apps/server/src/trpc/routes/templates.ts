@@ -1,5 +1,6 @@
 import { TemplatesManager } from '../../lib/templates-manager';
 import { privateProcedure, router } from '../trpc';
+import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
 const templatesProcedure = privateProcedure.use(async ({ ctx, next }) => {
@@ -24,8 +25,18 @@ export const templatesRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const template = await ctx.templatesManager.createTemplate(ctx.sessionUser.id, input);
-      return { template };
+      try {
+        const template = await ctx.templatesManager.createTemplate(ctx.sessionUser.id, input);
+        return { template };
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('already exists')) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: error.message,
+          });
+        }
+        throw error;
+      }
     }),
   delete: templatesProcedure
     .input(z.object({ id: z.string() }))

@@ -7,6 +7,7 @@ import {
   jsonb,
   primaryKey,
   unique,
+  index,
 } from 'drizzle-orm/pg-core';
 import { defaultUserSettings } from '../lib/schemas';
 
@@ -211,17 +212,24 @@ export const oauthConsent = createTable('oauth_consent', {
   consentGiven: boolean('consent_given'),
 });
 
-export const emailTemplate = createTable('email_template', {
-  id: text('id').primaryKey(),
-  userId: text('user_id')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  name: text('name').notNull(),
-  subject: text('subject'),
-  body: text('body'),
-  to: jsonb('to'),
-  cc: jsonb('cc'),
-  bcc: jsonb('bcc'),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
-});
+export const emailTemplate = createTable(
+  'email_template',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    subject: text('subject'),
+    body: text('body'),
+    to: jsonb('to'),
+    cc: jsonb('cc'),
+    bcc: jsonb('bcc'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('idx_mail0_email_template_user_id').on(t.userId),
+    unique('mail0_email_template_user_id_name_unique').on(t.userId, t.name),
+  ],
+);

@@ -1,4 +1,5 @@
 import { getZeroDB } from './server-utils';
+import { randomUUID } from 'node:crypto';
 
 type EmailTemplate = {
   id: string;
@@ -31,8 +32,30 @@ export class TemplatesManager {
       bcc?: string[] | null;
     },
   ) {
+    if (payload.name.length > 100) {
+      throw new Error('Template name must be at most 100 characters');
+    }
+    
+    if (payload.subject && payload.subject.length > 500) {
+      throw new Error('Template subject must be at most 500 characters');
+    }
+    
+    if (payload.body && payload.body.length > 50000) {
+      throw new Error('Template body must be at most 50,000 characters');
+    }
+
     const db = getZeroDB(userId);
-    const id = payload.id ?? crypto.randomUUID();
+    
+    const existingTemplates = (await db.listEmailTemplates()) as EmailTemplate[];
+    const nameExists = existingTemplates.some((template: EmailTemplate) => 
+      template.name.toLowerCase() === payload.name.toLowerCase()
+    );
+    
+    if (nameExists) {
+      throw new Error(`A template named "${payload.name}" already exists. Please choose a different name.`);
+    }
+    
+    const id = payload.id ?? randomUUID();
     const [template] = await db.createEmailTemplate({
       id,
       name: payload.name,

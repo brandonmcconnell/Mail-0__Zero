@@ -92,6 +92,16 @@ const TemplateButtonComponent: React.FC<TemplateButtonProps> = ({
       toast.error('Please provide a name');
       return;
     }
+
+    const nameExists = templates.some(template => 
+      template.name.toLowerCase() === templateName.trim().toLowerCase()
+    );
+    
+    if (nameExists) {
+      toast.error(`A template named "${templateName.trim()}" already exists. Please choose a different name.`);
+      return;
+    }
+
     setIsSaving(true);
     try {
       const newTemplate = await createTemplate({
@@ -111,6 +121,8 @@ const TemplateButtonComponent: React.FC<TemplateButtonProps> = ({
       toast.success('Template saved');
       setTemplateName('');
       setSaveDialogOpen(false);
+    } catch (error: any) {
+      toast.error('Failed to save template');
     } finally {
       setIsSaving(false);
     }
@@ -121,9 +133,9 @@ const TemplateButtonComponent: React.FC<TemplateButtonProps> = ({
     startTransition(() => {
       if (template.subject) setSubject(template.subject);
       if (template.body) editor.commands.setContent(template.body, false);
-      if (template.to) setRecipients('to', template.to as unknown as string[]);
-      if (template.cc) setRecipients('cc', template.cc as unknown as string[]);
-      if (template.bcc) setRecipients('bcc', template.bcc as unknown as string[]);
+      if (template.to) setRecipients('to', template.to);
+      if (template.cc) setRecipients('cc', template.cc);
+      if (template.bcc) setRecipients('bcc', template.bcc);
     });
   }, [editor, setSubject, setRecipients]);
 
@@ -170,22 +182,36 @@ const TemplateButtonComponent: React.FC<TemplateButtonProps> = ({
                       <span className="flex-1 truncate text-left">{t.name}</span>
                       <button
                         className="p-0.5 text-muted-foreground hover:text-destructive"
-                        onClick={async (e) => {
+                        onClick={(e) => {
                           e.stopPropagation();
-                          const confirmDelete = confirm('Delete this template?');
-                          if (!confirmDelete) return;
-                          try {
-                            await deleteTemplateMutation({ id: t.id });
-                            queryClient.setQueryData(trpc.templates.list.queryKey(), (old: TemplatesQueryData) => {
-                              if (!old?.templates) return old;
-                              return {
-                                templates: old.templates.filter((temp: Template) => temp.id !== t.id),
-                              };
-                            });
-                            toast.success('Deleted');
-                          } catch (err) {
-                            toast.error('Failed to delete');
-                          }
+                          setMenuOpen(false); 
+                          toast(`Delete template "${t.name}"?`, {
+                            duration: 10000,
+                            action: {
+                              label: 'Delete',
+                              onClick: (event) => {
+                                console.log('Delete button clicked!', event);
+                                deleteTemplateMutation({ id: t.id })
+                                  .then(() => {
+                                    queryClient.setQueryData(trpc.templates.list.queryKey(), (old: TemplatesQueryData) => {
+                                      if (!old?.templates) return old;
+                                      return {
+                                        templates: old.templates.filter((temp: Template) => temp.id !== t.id),
+                                      };
+                                    });
+                                    toast.success('Template deleted');
+                                  })
+                                  .catch((err) => {
+                                    console.error('Delete failed:', err);
+                                    toast.error('Failed to delete template');
+                                  });
+                              },
+                            },
+                            className: 'pointer-events-auto',
+                            style: {
+                              pointerEvents: 'auto',
+                            },
+                          });
                         }}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
