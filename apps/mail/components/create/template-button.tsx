@@ -23,7 +23,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Button as UIButton } from '@/components/ui/button';
 
 type RecipientField = 'to' | 'cc' | 'bcc';
 
@@ -139,6 +138,25 @@ const TemplateButtonComponent: React.FC<TemplateButtonProps> = ({
     });
   }, [editor, setSubject, setRecipients]);
 
+  const handleDeleteTemplate = useCallback(
+    async (templateId: string, templateName: string) => {
+      try {
+        await deleteTemplateMutation({ id: templateId });
+        queryClient.setQueryData(trpc.templates.list.queryKey(), (old: TemplatesQueryData) => {
+          if (!old?.templates) return old;
+          return {
+            templates: old.templates.filter((temp: Template) => temp.id !== templateId),
+          };
+        });
+        toast.success('Template deleted');
+      } catch (err) {
+        console.error('Delete failed:', err);
+        toast.error('Failed to delete template');
+      }
+    },
+    [deleteTemplateMutation, queryClient, trpc.templates.list],
+  );
+
   return (
     <>
       <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
@@ -189,23 +207,7 @@ const TemplateButtonComponent: React.FC<TemplateButtonProps> = ({
                             duration: 10000,
                             action: {
                               label: 'Delete',
-                              onClick: (event) => {
-                                console.log('Delete button clicked!', event);
-                                deleteTemplateMutation({ id: t.id })
-                                  .then(() => {
-                                    queryClient.setQueryData(trpc.templates.list.queryKey(), (old: TemplatesQueryData) => {
-                                      if (!old?.templates) return old;
-                                      return {
-                                        templates: old.templates.filter((temp: Template) => temp.id !== t.id),
-                                      };
-                                    });
-                                    toast.success('Template deleted');
-                                  })
-                                  .catch((err) => {
-                                    console.error('Delete failed:', err);
-                                    toast.error('Failed to delete template');
-                                  });
-                              },
+                              onClick: () => handleDeleteTemplate(t.id, t.name),
                             },
                             className: 'pointer-events-auto',
                             style: {
@@ -242,16 +244,16 @@ const TemplateButtonComponent: React.FC<TemplateButtonProps> = ({
             />
           </div>
           <DialogFooter className="flex justify-end gap-2">
-            <UIButton
+            <Button
               variant="ghost"
               size="sm"
               onClick={() => setSaveDialogOpen(false)}
             >
               Cancel
-            </UIButton>
-            <UIButton size="sm" onClick={handleSaveTemplate} disabled={isSaving}>
+            </Button>
+            <Button size="sm" onClick={handleSaveTemplate} disabled={isSaving}>
               Save
-            </UIButton>
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
