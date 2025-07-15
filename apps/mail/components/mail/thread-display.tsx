@@ -35,12 +35,12 @@ import { useAISidebar } from '@/components/ui/ai-sidebar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { ParsedMessage, Attachment } from '@/types';
 import { MailDisplaySkeleton } from './mail-skeleton';
+import { useParams, useNavigate } from 'react-router';
 import { useTRPC } from '@/providers/query-provider';
 import { useMutation } from '@tanstack/react-query';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
 import { cleanHtml } from '@/lib/email-utils';
-import { useParams } from 'react-router';
 
 import ReplyCompose from './reply-composer';
 import { NotesPanel } from './note-panel';
@@ -48,10 +48,11 @@ import { cn, FOLDERS } from '@/lib/utils';
 import { m } from '@/paraglide/messages';
 import MailDisplay from './mail-display';
 
+import { addComposeTabAtom } from '@/store/composeTabsStore';
+import { useAtom, useSetAtom } from 'jotai';
 import { Inbox } from 'lucide-react';
 import { useQueryState } from 'nuqs';
 import { format } from 'date-fns';
-import { useAtom } from 'jotai';
 import { toast } from 'sonner';
 import { AnimatePresence, motion } from 'motion/react';
 import { useAnimations } from '@/hooks/use-animations';
@@ -161,9 +162,11 @@ function ThreadActionButton({
 }
 const isFullscreen = false;
 export function ThreadDisplay() {
+  const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { toggleOpen: toggleAISidebar } = useAISidebar();
   const params = useParams<{ folder: string }>();
+  const addTab = useSetAtom(addComposeTabAtom);
 
   const folder = params?.folder ?? 'inbox';
   const [id, setThreadId] = useQueryState('threadId');
@@ -779,7 +782,7 @@ export function ThreadDisplay() {
                     </div>
                   </button>
                   <button
-                    onClick={() => setIsComposeOpen('true')}
+                    onClick={() => addTab({})}
                     className="inline-flex h-7 items-center justify-center gap-0.5 overflow-hidden rounded-lg border bg-white px-2 dark:border-none dark:bg-[#313131]"
                   >
                     <Mail className="mr-1 h-3.5 w-3.5 fill-[#959595]" />

@@ -1,10 +1,10 @@
 import { HotkeyProviderWrapper } from '@/components/providers/hotkey-provider-wrapper';
 import { OnboardingWrapper } from '@/components/onboarding';
 
+import { ComposeTabs } from '@/components/create/compose-tabs';
 import { NotificationProvider } from '@/components/party';
 import { AppSidebar } from '@/components/ui/app-sidebar';
-import { Outlet, } from 'react-router';
-
+import { Outlet } from 'react-router';
 
 export default function MailLayout() {
   return (
@@ -13,6 +13,7 @@ export default function MailLayout() {
       <div className="bg-sidebar dark:bg-sidebar w-full">
         <Outlet />
       </div>
+      <ComposeTabs />
       <OnboardingWrapper />
       <NotificationProvider />
     </HotkeyProviderWrapper>

@@ -38,6 +38,7 @@ import {
 } from '@/components/ui/command';
 import { getMainSearchTerm, parseNaturalLanguageSearch } from '@/lib/utils';
 import { DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { addComposeTabAtom } from '@/store/composeTabsStore';
 import { useSearchValue } from '@/hooks/use-search-value';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useLocation, useNavigate } from 'react-router';
@@ -57,6 +58,7 @@ import { m } from '@/paraglide/messages';
 import { Pencil2 } from '../icons/icons';
 import { Button } from '../ui/button';
 import { useQueryState } from 'nuqs';
+import { useSetAtom } from 'jotai';
 import { toast } from 'sonner';
 
 type CommandPaletteContext = {
@@ -193,6 +195,7 @@ export function CommandPalette({ children }: { children: React.ReactNode }) {
   const [commandInputValue, setCommandInputValue] = useState('');
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const addTab = useSetAtom(addComposeTabAtom);
 
   const { userLabels = [] } = useLabels();
   const trpc = useTRPC();
@@ -656,7 +659,7 @@ export function CommandPalette({ children }: { children: React.ReactNode }) {
       icon: Pencil2,
       shortcut: 'c',
       onClick: () => {
-        setIsComposeOpen('true');
+        addTab({});
       },
     });
 

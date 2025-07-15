@@ -1,30 +1,22 @@
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from '@/components/ui/sidebar';
-import { navigationConfig, bottomNavItems } from '@/config/navigation';
-import React, { useMemo, useState } from 'react';
-import { useSession } from '@/lib/auth-client';
-
+import { bottomNavItems, navigationConfig } from '@/config/navigation';
+import { addComposeTabAtom } from '@/store/composeTabsStore';
 import { useSidebar } from '@/components/ui/sidebar';
-import { CreateEmail } from '../create/create-email';
 import { PencilCompose, X } from '../icons/icons';
 import { useBilling } from '@/hooks/use-billing';
 import { useIsMobile } from '@/hooks/use-mobile';
+import React, { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { useSession } from '@/lib/auth-client';
 import { useAIFullScreen } from './ai-sidebar';
 import { useStats } from '@/hooks/use-stats';
 import { useLocation } from 'react-router';
-
 import { m } from '@/paraglide/messages';
 import { FOLDERS } from '@/lib/utils';
 import { NavUser } from './nav-user';
 import { NavMain } from './nav-main';
 import { useQueryState } from 'nuqs';
+import { useSetAtom } from 'jotai';
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { isPro, isLoading } = useBilling();
@@ -152,47 +144,27 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 function ComposeButton() {
   const { state } = useSidebar();
   const isMobile = useIsMobile();
+  const addTab = useSetAtom(addComposeTabAtom);
 
-  const [dialogOpen, setDialogOpen] = useQueryState('isComposeOpen');
-  const [, setDraftId] = useQueryState('draftId');
-  const [, setTo] = useQueryState('to');
-  const [, setActiveReplyId] = useQueryState('activeReplyId');
-  const [, setMode] = useQueryState('mode');
-
-  const handleOpenChange = async (open: boolean) => {
-    if (!open) {
-      setDialogOpen(null);
-    } else {
-      setDialogOpen('true');
-    }
-    setDraftId(null);
-    setTo(null);
-    setActiveReplyId(null);
-    setMode(null);
+  const handleCompose = () => {
+    addTab({});
   };
+
   return (
-    <Dialog open={!!dialogOpen} onOpenChange={handleOpenChange}>
-      <DialogTitle></DialogTitle>
-      <DialogDescription></DialogDescription>
-
-      <DialogTrigger asChild>
-        <button className="relative mb-1.5 inline-flex h-8 w-full items-center justify-center gap-1 self-stretch overflow-hidden rounded-lg border border-gray-200 bg-[#006FFE] text-black dark:border-none dark:text-white">
-          {state === 'collapsed' && !isMobile ? (
-            <PencilCompose className="mt-0.5 fill-white text-black" />
-          ) : (
-            <div className="flex items-center justify-center gap-2.5 pl-0.5 pr-1">
-              <PencilCompose className="fill-white" />
-              <div className="justify-start text-sm leading-none text-white">
-                {m['common.commandPalette.commands.newEmail']()}
-              </div>
-            </div>
-          )}
-        </button>
-      </DialogTrigger>
-
-      <DialogContent className="h-screen w-screen max-w-none border-none bg-[#FAFAFA] p-0 shadow-none dark:bg-[#141414]">
-        <CreateEmail />
-      </DialogContent>
-    </Dialog>
+    <button
+      onClick={handleCompose}
+      className="relative mb-1.5 inline-flex h-8 w-full items-center justify-center gap-1 self-stretch overflow-hidden rounded-lg border border-gray-200 bg-white text-black dark:border-none dark:bg-[#2C2C2C] dark:text-white"
+    >
+      {state === 'collapsed' && !isMobile ? (
+        <PencilCompose className="fill-iconLight dark:fill-iconDark mt-0.5 text-black" />
+      ) : (
+        <div className="flex items-center justify-center gap-2.5 pl-0.5 pr-1">
+          <PencilCompose className="fill-iconLight dark:fill-iconDark" />
+          <div className="justify-start text-sm leading-none">
+            {m['common.commandPalette.commands.newEmail']()}
+          </div>
+        </div>
+      )}
+    </button>
   );
 }
