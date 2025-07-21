@@ -89,6 +89,7 @@ interface EmailComposerProps {
   editorClassName?: string;
   draftId?: string | null;
   inATab?: boolean;
+  isFullscreen?: boolean;
 }
 
 const isValidEmail = (email: string): boolean => {
@@ -129,6 +130,7 @@ export function EmailComposer({
   editorClassName,
   draftId: propDraftId,
   inATab = false,
+  isFullscreen = false,
 }: EmailComposerProps) {
   const { data: aliases } = useEmailAliases();
   const { data: settings } = useSettings();
@@ -735,10 +737,11 @@ export function EmailComposer({
   return (
     <div
       className={cn(
-        'flex max-h-dvh w-full max-w-[750px] flex-col overflow-hidden bg-[#FAFAFA] shadow-sm dark:bg-[#202020]',
+        'flex max-h-dvh w-full flex-col overflow-hidden bg-[#FAFAFA] shadow-sm dark:bg-[#202020]',
         {
           'rounded-2xl': !inATab,
           'rounded-none': inATab,
+          'max-w-[750px]': !isFullscreen,
         },
         className,
       )}
@@ -1320,7 +1323,7 @@ export function EmailComposer({
         ) : null}
 
         {/* Message Content */}
-        <div className="flex-1 overflow-y-auto border-t bg-[#FFFFFF] px-3 py-3 outline-white/5 dark:bg-[#202020]">
+        <div className="flex-1 overflow-y-auto bg-[#FFFFFF] px-3 py-3 outline-white/5 dark:bg-[#202020]">
           <div
             onClick={() => {
               editor.commands.focus();
@@ -1341,17 +1344,56 @@ export function EmailComposer({
         <div className="flex flex-col items-start justify-start gap-2">
           {toggleToolbar && <Toolbar editor={editor} />}
           <div className="flex items-center justify-start gap-2">
-            <Button size={'xs'} onClick={handleSend} disabled={isLoading || settingsLoading}>
-              <div className="flex items-center justify-center">
-                <div className="text-center text-sm leading-none text-white dark:text-black">
-                  <span>Send </span>
+            <div className="relative">
+              <AnimatePresence>
+                {aiGeneratedMessage !== null ? (
+                  <ContentPreview
+                    content={aiGeneratedMessage}
+                    onAccept={() => {
+                      editor.commands.setContent({
+                        type: 'doc',
+                        content: aiGeneratedMessage.split(/\r?\n/).map((line) => {
+                          return {
+                            type: 'paragraph',
+                            content: line.trim().length === 0 ? [] : [{ type: 'text', text: line }],
+                          };
+                        }),
+                      });
+                      setAiGeneratedMessage(null);
+                    }}
+                    onReject={() => {
+                      setAiGeneratedMessage(null);
+                    }}
+                  />
+                ) : null}
+              </AnimatePresence>
+              <Button
+                size={'xs'}
+                variant={'ghost'}
+                className="border border-[#8B5CF6]"
+                onClick={async () => {
+                  if (!subjectInput.trim()) {
+                    await handleGenerateSubject();
+                  }
+                  setAiGeneratedMessage(null);
+                  await handleAiGenerate();
+                }}
+                disabled={isLoading || aiIsLoading || messageLength < 1}
+              >
+                <div className="flex items-center justify-center gap-2.5 pl-0.5">
+                  <div className="flex h-5 items-center justify-center gap-1 rounded-sm">
+                    {aiIsLoading ? (
+                      <Loader className="h-3.5 w-3.5 animate-spin fill-black dark:fill-white" />
+                    ) : (
+                      <Sparkles className="h-3.5 w-3.5 fill-black dark:fill-white" />
+                    )}
+                  </div>
+                  <div className="hidden text-center text-sm leading-none text-black md:block dark:text-white">
+                    Generate
+                  </div>
                 </div>
-              </div>
-              <div className="flex h-5 items-center justify-center gap-1 rounded-sm bg-white/10 px-1 dark:bg-black/10">
-                <Command className="h-3.5 w-3.5 text-white dark:text-black" />
-                <CurvedArrow className="mt-1.5 h-4 w-4 fill-white dark:fill-black" />
-              </div>
-            </Button>
+              </Button>
+            </div>
             <Button variant={'secondary'} size={'xs'} onClick={() => fileInputRef.current?.click()}>
               <Plus className="h-3 w-3 fill-[#9A9A9A]" />
               <span className="hidden px-0.5 text-sm md:block">Add</span>
@@ -1514,56 +1556,18 @@ export function EmailComposer({
           </div>
         </div>
         <div className="flex items-start justify-start gap-2">
-          <div className="relative">
-            <AnimatePresence>
-              {aiGeneratedMessage !== null ? (
-                <ContentPreview
-                  content={aiGeneratedMessage}
-                  onAccept={() => {
-                    editor.commands.setContent({
-                      type: 'doc',
-                      content: aiGeneratedMessage.split(/\r?\n/).map((line) => {
-                        return {
-                          type: 'paragraph',
-                          content: line.trim().length === 0 ? [] : [{ type: 'text', text: line }],
-                        };
-                      }),
-                    });
-                    setAiGeneratedMessage(null);
-                  }}
-                  onReject={() => {
-                    setAiGeneratedMessage(null);
-                  }}
-                />
-              ) : null}
-            </AnimatePresence>
-            <Button
-              size={'xs'}
-              variant={'ghost'}
-              className="border border-[#8B5CF6]"
-              onClick={async () => {
-                if (!subjectInput.trim()) {
-                  await handleGenerateSubject();
-                }
-                setAiGeneratedMessage(null);
-                await handleAiGenerate();
-              }}
-              disabled={isLoading || aiIsLoading || messageLength < 1}
-            >
-              <div className="flex items-center justify-center gap-2.5 pl-0.5">
-                <div className="flex h-5 items-center justify-center gap-1 rounded-sm">
-                  {aiIsLoading ? (
-                    <Loader className="h-3.5 w-3.5 animate-spin fill-black dark:fill-white" />
-                  ) : (
-                    <Sparkles className="h-3.5 w-3.5 fill-black dark:fill-white" />
-                  )}
-                </div>
-                <div className="hidden text-center text-sm leading-none text-black md:block dark:text-white">
-                  Generate
-                </div>
+          <Button size={'xs'} onClick={handleSend} disabled={isLoading || settingsLoading}>
+            <div className="flex items-center justify-center">
+              <div className="text-center text-sm leading-none text-white dark:text-black">
+                <span>Send </span>
               </div>
-            </Button>
-          </div>
+            </div>
+            <div className="flex h-5 items-center justify-center gap-1 rounded-sm bg-white/10 px-1 dark:bg-black/10">
+              <Command className="h-3.5 w-3.5 text-white dark:text-black" />
+              <CurvedArrow className="mt-1.5 h-4 w-4 fill-white dark:fill-black" />
+            </div>
+          </Button>
+
           {/* <Tooltip>
               <TooltipTrigger asChild>
                 <button

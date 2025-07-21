@@ -173,6 +173,7 @@ export function ComposeTabs() {
               className="h-full"
               autofocus={true}
               settingsLoading={settingsLoading}
+              isFullscreen={isFullscreen}
             />
           </div>
         </div>
@@ -253,7 +254,7 @@ export function ComposeTabs() {
                       transition={{ duration: 0.15 }}
                       className="flex h-full flex-col"
                     >
-                      <div className="dark:bg-panelDark flex items-center justify-between border-b px-4 py-2">
+                      <div className="dark:bg-panelDark flex items-center justify-between border-b p-2 pr-1.5">
                         <h3 className="text-sm font-medium">{tab.subject || 'New Email'}</h3>
                         <div className="flex items-center gap-1">
                           <Button
