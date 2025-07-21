@@ -226,7 +226,7 @@ export function ComposeTabs() {
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.15 }}
-                      className="hover:bg-accent flex h-10 items-center gap-2 rounded-full border bg-[#FFFFFF] px-4 py-2 shadow-lg dark:bg-[#202020]"
+                      className="hover:bg-accent flex h-10 items-center gap-2 rounded-lg border bg-[#FFFFFF] px-4 py-2 shadow-lg dark:bg-[#202020]"
                       onClick={() => toggleMinimize(tab.id)}
                     >
                       <span className="text-sm font-medium">
@@ -235,7 +235,7 @@ export function ComposeTabs() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="hover:bg-destructive/10 h-5 w-5 rounded-full"
+                        className="hover:bg-destructive/10 h-5 w-5 rounded-lg"
                         onClick={(e) => {
                           e.stopPropagation();
                           removeTab(tab.id);
@@ -316,7 +316,7 @@ export function ComposeTabs() {
           <Button
             variant="outline"
             size="icon"
-            className="h-10 w-10 rounded-full bg-[#FFFFFF] dark:bg-[#202020]"
+            className="h-10 w-10 rounded-lg border bg-[#FFFFFF] dark:bg-[#202020]"
             onClick={handleAddTab}
           >
             <Plus className="h-4 w-4" />
