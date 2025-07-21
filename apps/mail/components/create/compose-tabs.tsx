@@ -136,7 +136,7 @@ export function ComposeTabs() {
         className="fixed inset-0 z-50 bg-[#FAFAFA] dark:bg-[#141414]"
       >
         <div className="flex h-full flex-col">
-          <div className="flex items-center justify-between border-b px-4 py-2">
+          <div className="flex items-center justify-between border-b p-2 pr-1.5">
             <h2 className="text-lg font-semibold">{fullscreenTab.subject || 'New Email'}</h2>
             <div className="flex items-center gap-2">
               <Button
