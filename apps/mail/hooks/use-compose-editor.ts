@@ -248,13 +248,15 @@ const useComposeEditor = ({
       }
     },
     onUpdate: ({ editor }) => {
-      if (onChange) {
-        void onChange(editor.getJSON());
-      }
-
+      // Debounce onChange to prevent excessive updates
       if (onLengthChange) {
         const content = editor.getText();
         void onLengthChange(content.length);
+      }
+
+      // Only call onChange if provided (will be debounced in EmailComposer)
+      if (onChange) {
+        void onChange(editor.getJSON());
       }
     },
     content: initialValue

@@ -47,34 +47,6 @@ export function ComposeTabs() {
     addTab({});
   };
 
-  const handleCloseTab = (tabId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const tab = composeTabs.get(tabId);
-
-    if (tab && (tab.body || tab.subject || tab.to?.length)) {
-      toast.error('Unsaved changes', {
-        description: 'You have unsaved changes. Are you sure you want to close this tab?',
-        action: {
-          label: 'Close anyway',
-          onClick: () => removeTab(tabId),
-        },
-      });
-      return;
-    }
-
-    removeTab(tabId);
-  };
-
-  const handleMinimizeTab = (tabId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    toggleMinimize(tabId);
-  };
-
-  const handleFullscreenTab = (tabId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    toggleFullscreen(tabId);
-  };
-
   const handleSendEmail = async (
     tabId: string,
     data: {
@@ -231,7 +203,10 @@ export function ComposeTabs() {
                       onClick={() => toggleMinimize(tab.id)}
                     >
                       <span className="text-sm font-medium">
-                        {tab.to || tab.subject || 'New Email'}
+                        {tab.subject ||
+                          (tab.to?.length
+                            ? `To: ${tab.to[0]}${tab.to.length > 1 ? ` +${tab.to.length - 1}` : ''}`
+                            : 'New Email')}
                       </span>
                       <Button
                         variant="ghost"
@@ -253,6 +228,7 @@ export function ComposeTabs() {
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.15 }}
                       className="flex h-full flex-col"
+                      onClick={() => setActiveTabId(tab.id)}
                     >
                       <div className="dark:bg-panelDark flex items-center justify-between border-b p-2 pr-1.5">
                         <h3 className="text-sm font-medium">{tab.subject || 'New Email'}</h3>
@@ -301,7 +277,7 @@ export function ComposeTabs() {
                           onClose={() => removeTab(tab.id)}
                           onChange={(updates) => updateTab({ id: tab.id, updates })}
                           className="h-full"
-                          autofocus={activeTabId === tab.id}
+                          autofocus={true}
                           settingsLoading={settingsLoading}
                         />
                       </div>
