@@ -1323,13 +1323,14 @@ export function EmailComposer({
         ) : null}
 
         {/* Message Content */}
-        <div className="flex-1 overflow-y-auto bg-[#FFFFFF] px-3 py-3 outline-white/5 dark:bg-[#202020]">
+        <div className="flex-1 overflow-y-auto bg-[#FFFFFF] outline-white/5 dark:bg-[#202020]">
+          <Toolbar editor={editor} />
           <div
             onClick={() => {
               editor.commands.focus();
             }}
             className={cn(
-              `min-h-[200px] w-full`,
+              `min-h-[200px] w-full px-3 py-3`,
               editorClassName,
               aiGeneratedMessage !== null ? 'blur-sm' : '',
             )}
@@ -1342,7 +1343,6 @@ export function EmailComposer({
       {/* Bottom Actions */}
       <div className="inline-flex w-full shrink-0 items-end justify-between self-stretch rounded-b-2xl bg-[#FFFFFF] px-3 py-3 outline-white/5 dark:bg-[#202020]">
         <div className="flex flex-col items-start justify-start gap-2">
-          {toggleToolbar && <Toolbar editor={editor} />}
           <div className="flex items-center justify-start gap-2">
             <Button variant={'secondary'} size={'xs'} onClick={() => fileInputRef.current?.click()}>
               <Plus className="h-3 w-3 fill-[#9A9A9A]" />
@@ -1486,23 +1486,6 @@ export function EmailComposer({
                 </PopoverContent>
               </Popover>
             )}
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    tabIndex={-1}
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setToggleToolbar(!toggleToolbar)}
-                    className={`h-auto w-auto rounded p-1.5 ${toggleToolbar ? 'bg-muted' : 'bg-background'} border`}
-                  >
-                    <Type className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Formatting options</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
             <div className="relative">
               <AnimatePresence>
                 {aiGeneratedMessage !== null ? (
