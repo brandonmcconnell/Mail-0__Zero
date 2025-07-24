@@ -20,8 +20,76 @@ import { EmailComposer } from './email-composer';
 import { Button } from '@/components/ui/button';
 import { useSession } from '@/lib/auth-client';
 import { serializeFiles } from '@/lib/schemas';
+import { useDraft } from '@/hooks/use-drafts';
 import { useAtom, useSetAtom } from 'jotai';
+import type { Attachment } from '@/types';
+import { useMemo } from 'react';
 import { toast } from 'sonner';
+
+// Component to handle draft loading for each tab
+function ComposeTabContent({
+  tab,
+  tabId,
+  onSendEmail,
+  onChange,
+  updateTab,
+  settingsLoading,
+  isFullscreen = false,
+}: {
+  tab: any; // Using any for now since ComposeTab is from the store
+  tabId: string;
+  onSendEmail: (tabId: string, data: any) => void;
+  onChange: (updates: any) => void;
+  updateTab: (updates: { id: string; updates: any }) => void;
+  settingsLoading: boolean;
+  isFullscreen?: boolean;
+}) {
+  const { data: draft, isLoading: isDraftLoading } = useDraft(tab.draftId || null);
+
+  if (isDraftLoading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="text-center">
+          <div className="mx-auto mb-4 h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600"></div>
+          <p>Loading draft...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Use draft data if available, otherwise use tab data
+  const initialTo = draft?.to?.map((e: string) => e.replace(/[<>]/g, '')) || tab.to || [];
+  const initialCc = draft?.cc?.map((e: string) => e.replace(/[<>]/g, '')) || tab.cc || [];
+  const initialBcc = draft?.bcc?.map((e: string) => e.replace(/[<>]/g, '')) || tab.bcc || [];
+  const initialSubject = draft?.subject || tab.subject || '';
+  const initialMessage = draft?.content || tab.body || '';
+
+  return (
+    <EmailComposer
+      inATab={true}
+      initialTo={initialTo}
+      initialCc={initialCc}
+      initialBcc={initialBcc}
+      initialSubject={initialSubject}
+      initialMessage={initialMessage}
+      initialAttachments={tab.attachments || []}
+      draftId={tab.draftId}
+      onSendEmail={async (data) => await onSendEmail(tabId, data)}
+      onClose={() => {
+        /* Handled by parent */
+      }}
+      onChange={onChange}
+      onDraftCreated={(newDraftId) => {
+        // Update the tab with the new draft ID
+        updateTab({ id: tabId, updates: { draftId: newDraftId } });
+      }}
+      className="h-full"
+      autofocus={true}
+      settingsLoading={settingsLoading}
+      isFullscreen={isFullscreen}
+    />
+  );
+}
 
 export function ComposeTabs() {
   const [composeTabs] = useAtom(composeTabsAtom);
@@ -130,22 +198,14 @@ export function ComposeTabs() {
             </div>
           </div>
           <div className="flex-1 overflow-hidden">
-            <EmailComposer
-              inATab={true}
-              initialTo={fullscreenTab.to || []}
-              initialCc={fullscreenTab.cc || []}
-              initialBcc={fullscreenTab.bcc || []}
-              initialSubject={fullscreenTab.subject || ''}
-              initialMessage={fullscreenTab.body || ''}
-              initialAttachments={fullscreenTab.attachments || []}
-              draftId={fullscreenTab.draftId}
-              onSendEmail={(data) => handleSendEmail(fullscreenTabId, data)}
-              onClose={() => removeTab(fullscreenTabId)}
+            <ComposeTabContent
+              tab={fullscreenTab}
+              tabId={fullscreenTabId}
+              onSendEmail={handleSendEmail}
               onChange={(updates) => updateTab({ id: fullscreenTabId, updates })}
-              className="h-full"
-              autofocus={true}
+              updateTab={updateTab}
               settingsLoading={settingsLoading}
-              isFullscreen={isFullscreen}
+              isFullscreen={true}
             />
           </div>
         </div>
@@ -171,7 +231,7 @@ export function ComposeTabs() {
                   scale: 1,
                   y: 0,
                   width: tab.isMinimized ? 'auto' : '450px',
-                  height: tab.isMinimized ? 'auto' : '520px',
+                  height: tab.isMinimized ? 'auto' : '600px',
                 }}
                 exit={{ opacity: 0, scale: 0.8, y: 20 }}
                 transition={{
@@ -264,20 +324,12 @@ export function ComposeTabs() {
                       </div>
 
                       <div className="dark:bg-panelDark flex-1 overflow-y-auto">
-                        <EmailComposer
-                          inATab={true}
-                          initialTo={tab.to || []}
-                          initialCc={tab.cc || []}
-                          initialBcc={tab.bcc || []}
-                          initialSubject={tab.subject || ''}
-                          initialMessage={tab.body || ''}
-                          initialAttachments={tab.attachments || []}
-                          draftId={tab.draftId}
-                          onSendEmail={(data) => handleSendEmail(tab.id, data)}
-                          onClose={() => removeTab(tab.id)}
+                        <ComposeTabContent
+                          tab={tab}
+                          tabId={tab.id}
+                          onSendEmail={handleSendEmail}
                           onChange={(updates) => updateTab({ id: tab.id, updates })}
-                          className="h-full"
-                          autofocus={true}
+                          updateTab={updateTab}
                           settingsLoading={settingsLoading}
                         />
                       </div>

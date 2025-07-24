@@ -84,6 +84,7 @@ interface EmailComposerProps {
     body?: string;
     attachments?: File[];
   }) => void;
+  onDraftCreated?: (draftId: string) => void;
   className?: string;
   autofocus?: boolean;
   settingsLoading?: boolean;
@@ -125,6 +126,7 @@ function EmailComposerBase({
   onSendEmail,
   onClose,
   onChange,
+  onDraftCreated,
   className,
   autofocus = false,
   settingsLoading = false,
@@ -140,6 +142,7 @@ function EmailComposerBase({
   const [isLoading, setIsLoading] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [draftSavedAt, setDraftSavedAt] = useState<Date | null>(null);
   const [messageLength, setMessageLength] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toInputRef = useRef<HTMLInputElement>(null);
@@ -589,16 +592,25 @@ function EmailComposerBase({
         subject: values.subject,
         message: editor.getHTML(),
         attachments: await serializeFiles(values.attachments ?? []),
-        id: draftId,
+        id: currentDraftId || null,
         threadId: threadId ? threadId : null,
         fromEmail: values.fromEmail ? values.fromEmail : null,
       };
 
       const response = await createDraft(draftData);
 
-      if (response?.id && response.id !== draftId) {
-        setDraftId(response.id);
+      if (response?.id && response.id !== currentDraftId) {
+        // If we're in a tab, only update via callback
+        if (inATab && onDraftCreated) {
+          onDraftCreated(response.id);
+        } else {
+          // Otherwise, update the query state
+          setDraftId(response.id);
+        }
       }
+
+      // Mark draft as saved
+      setDraftSavedAt(new Date());
     } catch (error) {
       console.error('Error saving draft:', error);
       toast.error('Failed to save draft');
@@ -697,6 +709,16 @@ function EmailComposerBase({
 
     return () => clearTimeout(autoSaveTimer);
   }, [hasUnsavedChanges, saveDraft, editor, initialMessage, getValues]);
+
+  // Auto-hide the "Draft saved" message after 3 seconds
+  useEffect(() => {
+    if (draftSavedAt) {
+      const timer = setTimeout(() => {
+        setDraftSavedAt(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [draftSavedAt]);
 
   useEffect(() => {
     const handlePasteFiles = (event: ClipboardEvent) => {
@@ -1565,6 +1587,24 @@ function EmailComposerBase({
               <CurvedArrow className="mt-1.5 h-4 w-4 fill-white dark:fill-black" />
             </div>
           </Button>
+
+          {/* Draft saving indicator */}
+          {(isSavingDraft ||
+            (draftSavedAt && new Date().getTime() - draftSavedAt.getTime() < 3000)) && (
+            <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
+              {isSavingDraft ? (
+                <>
+                  <div className="h-1 w-1 animate-pulse rounded-full bg-green-500" />
+                  <span>Saving draft...</span>
+                </>
+              ) : (
+                <>
+                  <div className="h-1 w-1 rounded-full bg-green-500" />
+                  <span>Draft saved</span>
+                </>
+              )}
+            </div>
+          )}
 
           {/* <Tooltip>
               <TooltipTrigger asChild>

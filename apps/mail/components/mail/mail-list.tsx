@@ -41,10 +41,16 @@ import { Skeleton } from '../ui/skeleton';
 import { m } from '@/paraglide/messages';
 import { useParams } from 'react-router';
 
+import {
+  composeTabsAtom,
+  activeComposeTabIdAtom,
+  toggleMinimizeTabAtom,
+} from '@/store/composeTabsStore';
+import { addComposeTabAtom } from '@/store/composeTabsStore';
+import { useAtom, useSetAtom } from 'jotai';
 import { Button } from '../ui/button';
 import { useQueryState } from 'nuqs';
 import { Categories } from './mail';
-import { useAtom } from 'jotai';
 
 const Thread = memo(
   function Thread({
@@ -564,13 +570,31 @@ const Thread = memo(
 const Draft = memo(({ message }: { message: { id: string } }) => {
   const draftQuery = useDraft(message.id) as UseQueryResult<ParsedDraft>;
   const draft = draftQuery.data;
-  const [, setComposeOpen] = useQueryState('isComposeOpen');
-  const [, setDraftId] = useQueryState('draftId');
+  const addTab = useSetAtom(addComposeTabAtom);
+  const [composeTabs] = useAtom(composeTabsAtom);
+  const setActiveTabId = useSetAtom(activeComposeTabIdAtom);
+  const toggleMinimize = useSetAtom(toggleMinimizeTabAtom);
+
   const handleMailClick = useCallback(() => {
-    setComposeOpen('true');
-    setDraftId(message.id);
+    // Check if a tab with this draft ID already exists
+    const existingTab = Array.from(composeTabs.values()).find((tab) => tab.draftId === message.id);
+
+    if (existingTab) {
+      // If tab exists, just focus it
+      setActiveTabId(existingTab.id);
+      // Un-minimize if it's minimized
+      if (existingTab.isMinimized) {
+        toggleMinimize(existingTab.id);
+      }
+    } else {
+      // Otherwise, create a new tab with the draft subject
+      addTab({
+        draftId: message.id,
+        subject: draft?.subject || 'Draft',
+      });
+    }
     return;
-  }, [message.id]);
+  }, [message.id, addTab, composeTabs, setActiveTabId, toggleMinimize, draft?.subject]);
 
   if (!draft) {
     return (
