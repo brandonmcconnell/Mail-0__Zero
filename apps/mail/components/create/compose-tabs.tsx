@@ -83,7 +83,7 @@ function ComposeTabContent({
         // Update the tab with the new draft ID
         updateTab({ id: tabId, updates: { draftId: newDraftId } });
       }}
-      className="h-full"
+      className="h-full overflow-hidden rounded-2xl border-[1px] border-[#313131] bg-[#313131]"
       autofocus={true}
       settingsLoading={settingsLoading}
       isFullscreen={isFullscreen}
@@ -215,7 +215,7 @@ export function ComposeTabs() {
 
   return (
     <>
-      <div className="fixed bottom-4 right-4 z-40 flex max-w-[calc(100vw-32px)] flex-row-reverse items-end gap-3">
+      <div className="fixed bottom-4 right-4 z-40 flex flex-row-reverse items-end gap-3 overflow-y-scroll">
         <AnimatePresence>
           {Array.from(composeTabs.values()).map((tab) => {
             const index = Array.from(composeTabs.values()).indexOf(tab);
@@ -230,7 +230,7 @@ export function ComposeTabs() {
                   opacity: 1,
                   scale: 1,
                   y: 0,
-                  width: tab.isMinimized ? 'auto' : '450px',
+                  width: tab.isMinimized ? 'auto' : '500px',
                   height: tab.isMinimized ? 'auto' : '600px',
                 }}
                 exit={{ opacity: 0, scale: 0.8, y: 20 }}
@@ -248,7 +248,7 @@ export function ComposeTabs() {
                 className={
                   tab.isMinimized
                     ? 'cursor-pointer'
-                    : 'bg-background overflow-hidden rounded-lg border shadow-2xl'
+                    : 'bg-background overflow-hidden rounded-2xl border shadow-2xl dark:bg-[#313131]'
                 }
               >
                 <AnimatePresence mode="wait">
@@ -259,7 +259,7 @@ export function ComposeTabs() {
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.15 }}
-                      className="hover:bg-accent flex h-10 items-center gap-2 rounded-lg border bg-[#FFFFFF] px-4 py-2 shadow-lg dark:bg-[#202020]"
+                      className="hover:bg-accent flex h-10 items-center gap-2 rounded-2xl border bg-[#FFFFFF] py-2 pl-4 pr-2.5 shadow-lg dark:bg-[#313131]"
                       onClick={() => toggleMinimize(tab.id)}
                     >
                       <span className="text-sm font-medium">
@@ -290,7 +290,7 @@ export function ComposeTabs() {
                       className="flex h-full flex-col"
                       onClick={() => setActiveTabId(tab.id)}
                     >
-                      <div className="dark:bg-panelDark flex items-center justify-between border-b p-2 pr-1.5">
+                      <div className="flex items-center justify-between border-b bg-white p-2 px-3 pr-1.5 dark:bg-[#313131]">
                         <h3 className="text-sm font-medium">{tab.subject || 'New Email'}</h3>
                         <div className="flex items-center gap-1">
                           <Button
@@ -323,7 +323,7 @@ export function ComposeTabs() {
                         </div>
                       </div>
 
-                      <div className="dark:bg-panelDark flex-1 overflow-y-auto">
+                      <div className="flex-1 overflow-y-auto dark:bg-[#313131]">
                         <ComposeTabContent
                           tab={tab}
                           tabId={tab.id}
@@ -340,7 +340,7 @@ export function ComposeTabs() {
             );
           })}
         </AnimatePresence>
-
+        {/*
         <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}>
           <Button
             variant="outline"
@@ -350,7 +350,7 @@ export function ComposeTabs() {
           >
             <Plus className="h-4 w-4" />
           </Button>
-        </motion.div>
+        </motion.div> */}
       </div>
     </>
   );

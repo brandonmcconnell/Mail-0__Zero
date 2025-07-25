@@ -24,7 +24,7 @@ export const Toolbar = ({ editor }: { editor: Editor | null }) => {
   if (!editor) return null;
 
   return (
-    <div className="bg-panelDark flex w-full gap-2 border-b p-2 text-sm">
+    <div className="flex w-full gap-2 rounded-t-2xl border-none bg-[#202020] p-2 text-sm">
       <TooltipProvider>
         <div className="control-group overflow-x-auto">
           <div className="button-group ml-0 flex flex-wrap gap-1">

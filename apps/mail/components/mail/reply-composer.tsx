@@ -242,10 +242,10 @@ export default function ReplyCompose({ messageId }: ReplyComposeProps) {
   if (!mode || !emailData) return null;
 
   return (
-    <div className="w-full rounded-2xl overflow-visible border">
+    <div className="w-full overflow-visible rounded-2xl border">
       <EmailComposer
-        editorClassName="min-h-[50px]"
-        className="w-full !max-w-none pb-1 overflow-visible"
+        editorClassName="min-h-[180px]"
+        className="w-full !max-w-none overflow-hidden pb-1"
         onSendEmail={handleSendEmail}
         onClose={async () => {
           setMode(null);
