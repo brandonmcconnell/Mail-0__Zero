@@ -1,9 +1,7 @@
-import { domain, domainAccount } from '../../db/schema';
 import { SESMailManager } from '../../lib/driver/ses';
 import { getZeroDB } from '../../lib/server-utils';
 import { router, privateProcedure } from '../trpc';
 import { TRPCError } from '@trpc/server';
-import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 
 const domainSchema = z.object({
