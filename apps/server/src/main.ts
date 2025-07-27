@@ -8,14 +8,13 @@ import {
   account,
   connection,
   domain,
+  domainAccount,
   note,
   session,
   user,
   userHotkeys,
   userSettings,
   writingStyleMatrix,
-  domain,
-  domainAccount,
 } from './db/schema';
 import { env, WorkerEntrypoint, DurableObject, RpcTarget } from 'cloudflare:workers';
 import { EProviders, type ISubscribeBatch, type IThreadBatch } from './types';
