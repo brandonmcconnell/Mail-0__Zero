@@ -8,9 +8,8 @@ import {
   toggleMinimizeTabAtom,
   updateComposeTabAtom,
 } from '@/store/composeTabsStore';
-
-import { Maximize2, Minimize2, Minus, Plus, X } from 'lucide-react';
 import { useActiveConnection } from '@/hooks/use-connections';
+import { Maximize2, Minimize2, Minus, X } from 'lucide-react';
 import { useEmailAliases } from '@/hooks/use-email-aliases';
 import { AnimatePresence, motion } from 'motion/react';
 import { useTRPC } from '@/providers/query-provider';
@@ -22,8 +21,6 @@ import { useSession } from '@/lib/auth-client';
 import { serializeFiles } from '@/lib/schemas';
 import { useDraft } from '@/hooks/use-drafts';
 import { useAtom, useSetAtom } from 'jotai';
-import type { Attachment } from '@/types';
-import { useMemo } from 'react';
 import { toast } from 'sonner';
 
 // Component to handle draft loading for each tab
@@ -83,7 +80,7 @@ function ComposeTabContent({
         // Update the tab with the new draft ID
         updateTab({ id: tabId, updates: { draftId: newDraftId } });
       }}
-      className="h-full overflow-hidden rounded-2xl border-[1px] border-[#313131] bg-[#313131]"
+      className="h-full overflow-hidden rounded-none border-[1px] border-[#313131] bg-[#313131]"
       autofocus={true}
       settingsLoading={settingsLoading}
       isFullscreen={isFullscreen}
@@ -110,10 +107,6 @@ export function ComposeTabs() {
   const { mutateAsync: sendEmail } = useMutation(trpc.mail.send.mutationOptions());
 
   const userEmail = activeConnection?.email || session?.user?.email || '';
-
-  const handleAddTab = () => {
-    addTab({});
-  };
 
   const handleSendEmail = async (
     tabId: string,
@@ -215,7 +208,7 @@ export function ComposeTabs() {
 
   return (
     <>
-      <div className="fixed bottom-4 right-4 z-40 flex flex-row-reverse items-end gap-3 overflow-y-scroll">
+      <div className="fixed bottom-10 right-4 z-40 flex flex-row-reverse items-end gap-3 overflow-y-scroll">
         <AnimatePresence>
           {Array.from(composeTabs.values()).map((tab) => {
             const index = Array.from(composeTabs.values()).indexOf(tab);
@@ -290,7 +283,7 @@ export function ComposeTabs() {
                       className="flex h-full flex-col"
                       onClick={() => setActiveTabId(tab.id)}
                     >
-                      <div className="flex items-center justify-between border-b bg-white p-2 px-3 pr-1.5 dark:bg-[#313131]">
+                      <div className="flex items-center justify-between border-b px-3 pb-2 pr-1.5 pt-3 dark:bg-[#313131]">
                         <h3 className="text-sm font-medium">{tab.subject || 'New Email'}</h3>
                         <div className="flex items-center gap-1">
                           <Button
@@ -299,7 +292,7 @@ export function ComposeTabs() {
                             className="h-6 w-6"
                             onClick={() => toggleMinimize(tab.id)}
                           >
-                            <Minus className="h-3 w-3" />
+                            <Minus className="h-3 w-3 text-[#909090]" />
                           </Button>
                           <Button
                             variant="ghost"
@@ -307,7 +300,7 @@ export function ComposeTabs() {
                             className="h-6 w-6"
                             onClick={() => toggleFullscreen(tab.id)}
                           >
-                            <Maximize2 className="h-3 w-3" />
+                            <Maximize2 className="h-3 w-3 text-[#909090]" />
                           </Button>
                           <Button
                             variant="ghost"
@@ -318,7 +311,7 @@ export function ComposeTabs() {
                               removeTab(tab.id);
                             }}
                           >
-                            <X className="h-3 w-3" />
+                            <X className="h-3 w-3 text-[#909090]" />
                           </Button>
                         </div>
                       </div>

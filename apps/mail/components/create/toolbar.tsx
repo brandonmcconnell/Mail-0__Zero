@@ -26,7 +26,7 @@ export const Toolbar = ({ editor }: { editor: Editor | null }) => {
   return (
     <div className="flex w-full gap-2 rounded-t-2xl border-none bg-[#202020] p-2 text-sm">
       <TooltipProvider>
-        <div className="control-group overflow-x-auto">
+        <div className="control-group overflow-x-auto text-[#909090]">
           <div className="button-group ml-0 flex flex-wrap gap-1">
             <div className="mr-2 flex items-center gap-1">
               <Tooltip>
@@ -38,7 +38,7 @@ export const Toolbar = ({ editor }: { editor: Editor | null }) => {
                     size="icon"
                     onClick={() => editor.chain().focus().undo().run()}
                     disabled={!editor.can().undo()}
-                    className={`bg-muted disabled:bg-background h-auto w-auto rounded p-1.5`}
+                    className={`disabled:bg-background h-auto w-auto rounded p-1.5`}
                   >
                     <Undo2 className="h-4 w-4" />
                   </Button>
@@ -55,7 +55,7 @@ export const Toolbar = ({ editor }: { editor: Editor | null }) => {
                     size="icon"
                     onClick={() => editor.chain().focus().redo().run()}
                     disabled={!editor.can().redo()}
-                    className={`bg-muted disabled:bg-background h-auto w-auto rounded p-1.5`}
+                    className={`disabled:bg-background h-auto w-auto rounded p-1.5`}
                   >
                     <Redo2 className="h-4 w-4" />
                   </Button>
@@ -122,7 +122,7 @@ export const Toolbar = ({ editor }: { editor: Editor | null }) => {
                     size="icon"
                     onClick={() => editor.chain().focus().toggleBold().run()}
                     disabled={!editor.can().chain().focus().toggleBold().run()}
-                    className={`h-auto w-auto rounded p-1.5 ${editor.isActive('bold') ? 'bg-muted font-medium' : 'bg-background'}`}
+                    className={`h-auto w-auto rounded p-1.5 ${editor.isActive('bold') ? 'font-medium' : 'bg-background'}`}
                     title="Bold"
                   >
                     <Bold className="h-4 w-4" />
