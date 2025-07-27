@@ -7,6 +7,7 @@ import {
 import {
   account,
   connection,
+  domain,
   note,
   session,
   user,
@@ -55,6 +56,10 @@ export class DbRpcDO extends RpcTarget {
 
   async findUser(): Promise<typeof user.$inferSelect | undefined> {
     return await this.mainDo.findUser(this.userId);
+  }
+
+  async findUserDomains(userId: string): Promise<(typeof domain.$inferSelect)[]> {
+    return await this.mainDo.findUserDomains(userId);
   }
 
   async findUserConnection(
@@ -187,6 +192,10 @@ class ZeroDB extends DurableObject<Env> {
     return await this.db.query.user.findFirst({
       where: eq(user.id, userId),
     });
+  }
+
+  async findUserDomains(userId: string): Promise<(typeof domain.$inferSelect)[]> {
+    return await this.db.select().from(domain).where(eq(domain.userId, userId));
   }
 
   async findUserConnection(

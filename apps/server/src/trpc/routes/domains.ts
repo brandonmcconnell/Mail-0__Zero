@@ -1,8 +1,9 @@
-import { router, privateProcedure } from '../trpc';
 import { domain, domainAccount } from '../../db/schema';
+import { SESMailManager } from '../../lib/driver/ses';
+import { getZeroDB } from '../../lib/server-utils';
+import { router, privateProcedure } from '../trpc';
 import { TRPCError } from '@trpc/server';
 import { eq, and } from 'drizzle-orm';
-import { SESMailManager } from '../../lib/driver/ses';
 import { z } from 'zod';
 
 const domainSchema = z.object({
@@ -27,30 +28,27 @@ const domainAccountSchema = z.object({
 });
 
 export const domainsRouter = router({
-  list: privateProcedure
-    .output(z.array(domainSchema))
-    .query(async ({ ctx }) => {
-      const { sessionUser, c } = ctx;
-      if (!sessionUser) {
-        throw new TRPCError({ code: 'UNAUTHORIZED' });
-      }
+  list: privateProcedure.output(z.array(domainSchema)).query(async ({ ctx }) => {
+    const { sessionUser } = ctx;
+    if (!sessionUser) {
+      throw new TRPCError({ code: 'UNAUTHORIZED' });
+    }
 
-      const db = c.get('db') as any;
-      const domains = await db
-        .select()
-        .from(domain)
-        .where(eq(domain.userId, sessionUser.id));
+    const db = await getZeroDB(sessionUser.id);
+    const domains = await db.findUserDomains(sessionUser.id);
 
-      return domains;
-    }),
+    return domains;
+  }),
 
   add: privateProcedure
     .input(z.object({ domain: z.string().min(1) }))
-    .output(z.object({ 
-      id: z.string(),
-      verificationToken: z.string(),
-      dkimTokens: z.array(z.string()).optional(),
-    }))
+    .output(
+      z.object({
+        id: z.string(),
+        verificationToken: z.string(),
+        dkimTokens: z.array(z.string()).optional(),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       const { sessionUser, c } = ctx;
       if (!sessionUser) {
@@ -58,7 +56,7 @@ export const domainsRouter = router({
       }
 
       const db = c.get('db') as any;
-      
+
       const existingDomain = await db
         .select()
         .from(domain)
@@ -86,7 +84,7 @@ export const domainsRouter = router({
         await sesManager.enableDkim(input.domain);
 
         const domainId = crypto.randomUUID();
-        
+
         await db.insert(domain).values({
           id: domainId,
           userId: sessionUser.id,
@@ -102,7 +100,7 @@ export const domainsRouter = router({
         if (dkimTokens) {
           await db
             .update(domain)
-            .set({ 
+            .set({
               dkimTokens,
               updatedAt: new Date(),
             })
@@ -133,7 +131,7 @@ export const domainsRouter = router({
       }
 
       const db = c.get('db') as any;
-      
+
       const domainRecord = await db
         .select()
         .from(domain)
@@ -157,11 +155,13 @@ export const domainsRouter = router({
       });
 
       try {
-        const { verified, dkimTokens } = await sesManager.getDomainVerificationStatus(domainRecord[0].domain);
+        const { verified, dkimTokens } = await sesManager.getDomainVerificationStatus(
+          domainRecord[0].domain,
+        );
 
         await db
           .update(domain)
-          .set({ 
+          .set({
             verified,
             dkimTokens,
             updatedAt: new Date(),
@@ -187,7 +187,7 @@ export const domainsRouter = router({
       }
 
       const db = c.get('db') as any;
-      
+
       await db
         .delete(domain)
         .where(and(eq(domain.id, input.domainId), eq(domain.userId, sessionUser.id)));
@@ -205,7 +205,7 @@ export const domainsRouter = router({
       }
 
       const db = c.get('db') as any;
-      
+
       const domainRecord = await db
         .select()
         .from(domain)
@@ -228,11 +228,13 @@ export const domainsRouter = router({
     }),
 
   addAccount: privateProcedure
-    .input(z.object({ 
-      domainId: z.string(),
-      email: z.string().email(),
-      name: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        domainId: z.string(),
+        email: z.string().email(),
+        name: z.string().optional(),
+      }),
+    )
     .output(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const { sessionUser, c } = ctx;
@@ -241,7 +243,7 @@ export const domainsRouter = router({
       }
 
       const db = c.get('db') as any;
-      
+
       const domainRecord = await db
         .select()
         .from(domain)
@@ -258,7 +260,9 @@ export const domainsRouter = router({
       const existingAccount = await db
         .select()
         .from(domainAccount)
-        .where(and(eq(domainAccount.domainId, input.domainId), eq(domainAccount.email, input.email)))
+        .where(
+          and(eq(domainAccount.domainId, input.domainId), eq(domainAccount.email, input.email)),
+        )
         .limit(1);
 
       if (existingAccount.length > 0) {
@@ -269,7 +273,7 @@ export const domainsRouter = router({
       }
 
       const accountId = crypto.randomUUID();
-      
+
       await db.insert(domainAccount).values({
         id: accountId,
         domainId: input.domainId,
@@ -292,7 +296,7 @@ export const domainsRouter = router({
       }
 
       const db = c.get('db') as any;
-      
+
       const account = await db
         .select({ domainId: domainAccount.domainId })
         .from(domainAccount)
@@ -319,9 +323,7 @@ export const domainsRouter = router({
         });
       }
 
-      await db
-        .delete(domainAccount)
-        .where(eq(domainAccount.id, input.accountId));
+      await db.delete(domainAccount).where(eq(domainAccount.id, input.accountId));
 
       return { success: true };
     }),

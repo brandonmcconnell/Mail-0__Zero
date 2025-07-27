@@ -46,6 +46,7 @@ export default [
         route('/notifications', '(routes)/settings/notifications/page.tsx'),
         route('/privacy', '(routes)/settings/privacy/page.tsx'),
         route('/security', '(routes)/settings/security/page.tsx'),
+        route('/domains', '(routes)/settings/domains/page.tsx'),
         route('/shortcuts', '(routes)/settings/shortcuts/page.tsx'),
         route('/*', '(routes)/settings/[...settings]/page.tsx'),
       ]),
