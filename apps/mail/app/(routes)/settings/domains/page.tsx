@@ -89,7 +89,7 @@ export default function DomainsPage() {
             <div className="grid gap-4">
               {[...Array(2)].map((_, i) => (
                 <div
-                  key={i}
+                  key={`skeleton-${i}`}
                   className="bg-popover flex items-center justify-between rounded-lg border p-4"
                 >
                   <div className="flex min-w-0 items-center gap-4">

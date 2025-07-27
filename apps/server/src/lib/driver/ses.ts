@@ -1,5 +1,5 @@
 import type { MailManager, ManagerConfig, IGetThreadResponse, ParsedDraft } from './types';
-import type { IOutgoingMessage, ParsedMessage, Label, DeleteAllSpamResponse } from '../../types';
+import type { IOutgoingMessage, Label, DeleteAllSpamResponse } from '../../types';
 import type { CreateDraftData } from '../schemas';
 
 export class SESMailManager implements MailManager {
@@ -20,11 +20,11 @@ export class SESMailManager implements MailManager {
     };
   }
 
-  async enableDkim(domain: string): Promise<void> {
+  async enableDkim(_domain: string): Promise<void> {
     
   }
 
-  async getMessageAttachments(id: string): Promise<{
+  async getMessageAttachments(_id: string): Promise<{
     filename: string;
     mimeType: string;
     size: number;
@@ -35,7 +35,7 @@ export class SESMailManager implements MailManager {
     return [];
   }
 
-  async get(id: string): Promise<IGetThreadResponse> {
+  async get(_id: string): Promise<IGetThreadResponse> {
     return {
       messages: [],
       hasUnread: false,
@@ -44,28 +44,28 @@ export class SESMailManager implements MailManager {
     };
   }
 
-  async create(data: IOutgoingMessage): Promise<{ id?: string | null }> {
+  async create(_data: IOutgoingMessage): Promise<{ id?: string | null }> {
     return { id: null };
   }
 
-  async sendDraft(id: string, data: IOutgoingMessage): Promise<void> {
+  async sendDraft(_id: string, _data: IOutgoingMessage): Promise<void> {
     
   }
 
-  async createDraft(data: CreateDraftData): Promise<{ id?: string | null; success?: boolean; error?: string }> {
+  async createDraft(_data: CreateDraftData): Promise<{ id?: string | null; success?: boolean; error?: string }> {
     return { success: false, error: 'Draft creation not supported for SES domains' };
   }
 
-  async getDraft(id: string): Promise<ParsedDraft> {
+  async getDraft(_id: string): Promise<ParsedDraft> {
     return {
-      id,
+      id: _id,
       to: [],
       subject: '',
       content: '',
     };
   }
 
-  async listDrafts(params: { q?: string; maxResults?: number; pageToken?: string }): Promise<{
+  async listDrafts(_params: { q?: string; maxResults?: number; pageToken?: string }): Promise<{
     threads: { id: string; historyId: string | null; $raw: unknown }[];
     nextPageToken: string | null;
   }> {
@@ -75,11 +75,11 @@ export class SESMailManager implements MailManager {
     };
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(_id: string): Promise<void> {
     
   }
 
-  async list(params: {
+  async list(_params: {
     folder: string;
     query?: string;
     maxResults?: number;
@@ -99,11 +99,11 @@ export class SESMailManager implements MailManager {
     return [];
   }
 
-  async getTokens(code: string): Promise<{ tokens: { access_token?: string; refresh_token?: string; expiry_date?: number } }> {
+  async getTokens(_code: string): Promise<{ tokens: { access_token?: string; refresh_token?: string; expiry_date?: number } }> {
     return { tokens: {} };
   }
 
-  async getUserInfo(tokens?: ManagerConfig['auth']): Promise<{ address: string; name: string; photo: string }> {
+  async getUserInfo(_tokens?: ManagerConfig['auth']): Promise<{ address: string; name: string; photo: string }> {
     return {
       address: this.config.auth.email,
       name: '',
@@ -115,27 +115,27 @@ export class SESMailManager implements MailManager {
     return '';
   }
 
-  async listHistory<T>(historyId: string): Promise<{ history: T[]; historyId: string }> {
-    return { history: [], historyId };
+  async listHistory<T>(_historyId: string): Promise<{ history: T[]; historyId: string }> {
+    return { history: [], historyId: _historyId };
   }
 
-  async markAsRead(threadIds: string[]): Promise<void> {
+  async markAsRead(_threadIds: string[]): Promise<void> {
     
   }
 
-  async markAsUnread(threadIds: string[]): Promise<void> {
+  async markAsUnread(_threadIds: string[]): Promise<void> {
     
   }
 
-  normalizeIds(id: string[]): { threadIds: string[] } {
-    return { threadIds: id };
+  normalizeIds(_id: string[]): { threadIds: string[] } {
+    return { threadIds: _id };
   }
 
-  async modifyLabels(id: string[], options: { addLabels: string[]; removeLabels: string[] }): Promise<void> {
+  async modifyLabels(_id: string[], _options: { addLabels: string[]; removeLabels: string[] }): Promise<void> {
     
   }
 
-  async getAttachment(messageId: string, attachmentId: string): Promise<string | undefined> {
+  async getAttachment(_messageId: string, _attachmentId: string): Promise<string | undefined> {
     return undefined;
   }
 
@@ -143,19 +143,19 @@ export class SESMailManager implements MailManager {
     return [];
   }
 
-  async getLabel(id: string): Promise<Label> {
-    return { id, name: '', type: 'user', color: { backgroundColor: '', textColor: '' } };
+  async getLabel(_id: string): Promise<Label> {
+    return { id: _id, name: '', type: 'user', color: { backgroundColor: '', textColor: '' } };
   }
 
-  async createLabel(label: { name: string; color?: { backgroundColor: string; textColor: string } }): Promise<void> {
+  async createLabel(_label: { name: string; color?: { backgroundColor: string; textColor: string } }): Promise<void> {
     
   }
 
-  async updateLabel(id: string, label: { name: string; color?: { backgroundColor: string; textColor: string } }): Promise<void> {
+  async updateLabel(_id: string, _label: { name: string; color?: { backgroundColor: string; textColor: string } }): Promise<void> {
     
   }
 
-  async deleteLabel(id: string): Promise<void> {
+  async deleteLabel(_id: string): Promise<void> {
     
   }
 
@@ -163,7 +163,7 @@ export class SESMailManager implements MailManager {
     return [{ email: this.config.auth.email, primary: true }];
   }
 
-  async revokeToken(token: string): Promise<boolean> {
+  async revokeToken(_token: string): Promise<boolean> {
     return false;
   }
 
