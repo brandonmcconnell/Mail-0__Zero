@@ -1,0 +1,19 @@
+{
+  "name": "ses-email-processor",
+  "version": "1.0.0",
+  "description": "AWS Lambda function for processing SES emails and forwarding to Cloudflare Workers",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "deploy": "sam deploy",
+    "package": "sam package",
+    "local": "sam local start-api"
+  },
+  "dependencies": {
+    "@types/aws-lambda": "^8.10.145"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0"
+  }
+}

@@ -1,0 +1,38 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: SES Email Processor Lambda Function
+
+Parameters:
+  CloudflareWorkerUrl:
+    Type: String
+    Description: URL of the Cloudflare Worker endpoint
+  CloudflareAuthToken:
+    Type: String
+    Description: Authentication token for Cloudflare Worker
+    NoEcho: true
+
+Resources:
+  SESEmailProcessor:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: dist/
+      Handler: index.handler
+      Runtime: nodejs18.x
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          CLOUDFLARE_WORKER_URL: !Ref CloudflareWorkerUrl
+          CLOUDFLARE_AUTH_TOKEN: !Ref CloudflareAuthToken
+      Events:
+        SESEvent:
+          Type: SES
+          Properties:
+            Rule:
+              Recipients:
+                - "*"
+
+Outputs:
+  SESEmailProcessorArn:
+    Description: ARN of the SES Email Processor Lambda function
+    Value: !GetAtt SESEmailProcessor.Arn

@@ -8,6 +8,13 @@ const app = new Hono();
 
 app.post('/webhook/ses', async (c) => {
   try {
+    const authHeader = c.req.header('Authorization');
+    const expectedToken = env.SES_LAMBDA_AUTH_TOKEN;
+    
+    if (expectedToken && (!authHeader || authHeader !== `Bearer ${expectedToken}`)) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+    
     const body = await c.req.json();
     
     if (body.Type === 'SubscriptionConfirmation') {

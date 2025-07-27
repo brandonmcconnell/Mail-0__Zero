@@ -13,6 +13,7 @@
     "build:frontend": "pnpm run --filter=@zero/mail build",
     "deploy:frontend": "pnpm run --filter=@zero/mail deploy",
     "deploy:backend": "pnpm run --filter=@zero/server deploy",
+    "deploy:lambda": "cd lambda/ses-email-processor && npm run build && npm run deploy",
     "start": "turbo run start",
     "lint": "turbo run lint",
     "format": "prettier --write apps/**/*.{ts,tsx} --log-level silent",
