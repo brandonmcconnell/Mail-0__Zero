@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import { domain, domainAccount } from '../../db/schema';
 import { eq, and } from 'drizzle-orm';
+import { env } from 'cloudflare:workers';
+import { createDb } from '../../db';
 
 const app = new Hono();
 
@@ -16,23 +18,20 @@ app.post('/webhook/ses', async (c) => {
       const message = JSON.parse(body.Message);
       
       if (message.eventType === 'send' || message.eventType === 'receive') {
-        const db = c.get('db') as any;
+        const db = createDb(env.HYPERDRIVE.connectionString).db;
         const recipientDomain = message.mail.destination[0].split('@')[1];
         
-        const domainRecord = await db
-          .select()
-          .from(domain)
-          .where(and(eq(domain.domain, recipientDomain), eq(domain.verified, true)))
-          .limit(1);
+        const domainRecord = await db.query.domain.findFirst({
+          where: and(eq(domain.domain, recipientDomain), eq(domain.verified, true)),
+        });
           
-        if (domainRecord.length > 0) {
-          const accounts = await db
-            .select()
-            .from(domainAccount)
-            .where(and(
-              eq(domainAccount.domainId, domainRecord[0].id),
+        if (domainRecord) {
+          const accounts = await db.query.domainAccount.findMany({
+            where: and(
+              eq(domainAccount.domainId, domainRecord.id),
               eq(domainAccount.active, true)
-            ));
+            ),
+          });
             
           for (const account of accounts) {
             if (message.mail.destination.includes(account.email)) {

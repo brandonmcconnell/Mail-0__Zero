@@ -14,6 +14,8 @@ import {
   userHotkeys,
   userSettings,
   writingStyleMatrix,
+  domain,
+  domainAccount,
 } from './db/schema';
 import { env, WorkerEntrypoint, DurableObject, RpcTarget } from 'cloudflare:workers';
 import { EProviders, type ISubscribeBatch, type IThreadBatch } from './types';
@@ -178,6 +180,46 @@ export class DbRpcDO extends RpcTarget {
     updatingInfo: Partial<typeof connection.$inferInsert>,
   ) {
     return await this.mainDo.updateConnection(connectionId, updatingInfo);
+  }
+
+  async findManyDomains(): Promise<(typeof domain.$inferSelect)[]> {
+    return await this.mainDo.findManyDomains(this.userId);
+  }
+
+  async findDomainById(domainId: string): Promise<typeof domain.$inferSelect | undefined> {
+    return await this.mainDo.findDomainById(this.userId, domainId);
+  }
+
+  async findDomainByName(domainName: string): Promise<typeof domain.$inferSelect | undefined> {
+    return await this.mainDo.findDomainByName(domainName);
+  }
+
+  async createDomain(payload: Omit<typeof domain.$inferInsert, 'userId'>) {
+    return await this.mainDo.createDomain(this.userId, payload as typeof domain.$inferInsert);
+  }
+
+  async updateDomain(domainId: string, payload: Partial<typeof domain.$inferInsert>): Promise<typeof domain.$inferSelect | undefined> {
+    return await this.mainDo.updateDomain(this.userId, domainId, payload);
+  }
+
+  async deleteDomain(domainId: string) {
+    return await this.mainDo.deleteDomain(this.userId, domainId);
+  }
+
+  async findManyDomainAccounts(domainId: string): Promise<(typeof domainAccount.$inferSelect)[]> {
+    return await this.mainDo.findManyDomainAccounts(domainId);
+  }
+
+  async findDomainAccountById(accountId: string): Promise<typeof domainAccount.$inferSelect | undefined> {
+    return await this.mainDo.findDomainAccountById(accountId);
+  }
+
+  async createDomainAccount(payload: typeof domainAccount.$inferInsert) {
+    return await this.mainDo.createDomainAccount(payload);
+  }
+
+  async deleteDomainAccount(accountId: string) {
+    return await this.mainDo.deleteDomainAccount(accountId);
   }
 }
 
@@ -503,6 +545,95 @@ class ZeroDB extends DurableObject<Env> {
       .update(connection)
       .set(updatingInfo)
       .where(eq(connection.id, connectionId));
+  }
+
+  async findManyDomains(userId: string): Promise<(typeof domain.$inferSelect)[]> {
+    return await this.db.query.domain.findMany({
+      where: eq(domain.userId, userId),
+    });
+  }
+
+  async findDomainById(userId: string, domainId: string): Promise<typeof domain.$inferSelect | undefined> {
+    return await this.db.query.domain.findFirst({
+      where: and(eq(domain.id, domainId), eq(domain.userId, userId)),
+    });
+  }
+
+  async findDomainByName(domainName: string): Promise<typeof domain.$inferSelect | undefined> {
+    return await this.db.query.domain.findFirst({
+      where: eq(domain.domain, domainName),
+    });
+  }
+
+  async createDomain(userId: string, payload: typeof domain.$inferInsert) {
+    return await this.db
+      .insert(domain)
+      .values({
+        ...payload,
+        userId,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+  }
+
+  async updateDomain(userId: string, domainId: string, payload: Partial<typeof domain.$inferInsert>): Promise<typeof domain.$inferSelect | undefined> {
+    const [updated] = await this.db
+      .update(domain)
+      .set({
+        ...payload,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(domain.id, domainId), eq(domain.userId, userId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteDomain(userId: string, domainId: string) {
+    return await this.db
+      .delete(domain)
+      .where(and(eq(domain.id, domainId), eq(domain.userId, userId)));
+  }
+
+  async findManyDomainAccounts(domainId: string): Promise<(typeof domainAccount.$inferSelect)[]> {
+    return await this.db.query.domainAccount.findMany({
+      where: eq(domainAccount.domainId, domainId),
+    });
+  }
+
+  async findDomainAccountById(accountId: string): Promise<typeof domainAccount.$inferSelect | undefined> {
+    return await this.db.query.domainAccount.findFirst({
+      where: eq(domainAccount.id, accountId),
+    });
+  }
+
+  async createDomainAccount(payload: typeof domainAccount.$inferInsert) {
+    return await this.db
+      .insert(domainAccount)
+      .values({
+        ...payload,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+  }
+
+  async deleteDomainAccount(accountId: string) {
+    return await this.db
+      .delete(domainAccount)
+      .where(eq(domainAccount.id, accountId));
+  }
+
+  async findVerifiedDomainByName(domainName: string): Promise<typeof domain.$inferSelect | undefined> {
+    return await this.db.query.domain.findFirst({
+      where: and(eq(domain.domain, domainName), eq(domain.verified, true)),
+    });
+  }
+
+  async findActiveDomainAccounts(domainId: string): Promise<(typeof domainAccount.$inferSelect)[]> {
+    return await this.db.query.domainAccount.findMany({
+      where: and(eq(domainAccount.domainId, domainId), eq(domainAccount.active, true)),
+    });
   }
 }
 

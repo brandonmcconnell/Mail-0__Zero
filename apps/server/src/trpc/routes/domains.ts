@@ -35,7 +35,7 @@ export const domainsRouter = router({
     }
 
     const db = await getZeroDB(sessionUser.id);
-    const domains = await db.findUserDomains(sessionUser.id);
+    const domains = await db.findManyDomains();
 
     return domains;
   }),
@@ -50,20 +50,16 @@ export const domainsRouter = router({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const { sessionUser, c } = ctx;
+      const { sessionUser } = ctx;
       if (!sessionUser) {
         throw new TRPCError({ code: 'UNAUTHORIZED' });
       }
 
-      const db = c.get('db') as any;
+      const db = await getZeroDB(sessionUser.id);
+      
+      const existingDomain = await db.findDomainByName(input.domain);
 
-      const existingDomain = await db
-        .select()
-        .from(domain)
-        .where(eq(domain.domain, input.domain))
-        .limit(1);
-
-      if (existingDomain.length > 0) {
+      if (existingDomain) {
         throw new TRPCError({
           code: 'CONFLICT',
           message: 'Domain already exists',
@@ -84,27 +80,20 @@ export const domainsRouter = router({
         await sesManager.enableDkim(input.domain);
 
         const domainId = crypto.randomUUID();
-
-        await db.insert(domain).values({
+        
+        const result = await db.createDomain({
           id: domainId,
-          userId: sessionUser.id,
           domain: input.domain,
           verified: false,
           verificationToken,
-          createdAt: new Date(),
-          updatedAt: new Date(),
         });
 
         const { dkimTokens } = await sesManager.getDomainVerificationStatus(input.domain);
 
-        if (dkimTokens) {
-          await db
-            .update(domain)
-            .set({
-              dkimTokens,
-              updatedAt: new Date(),
-            })
-            .where(eq(domain.id, domainId));
+        if (dkimTokens && result.length > 0) {
+          await db.updateDomain(domainId, { 
+            dkimTokens,
+          });
         }
 
         return {
@@ -125,20 +114,16 @@ export const domainsRouter = router({
     .input(z.object({ domainId: z.string() }))
     .output(z.object({ verified: z.boolean(), dkimTokens: z.array(z.string()).optional() }))
     .mutation(async ({ input, ctx }) => {
-      const { sessionUser, c } = ctx;
+      const { sessionUser } = ctx;
       if (!sessionUser) {
         throw new TRPCError({ code: 'UNAUTHORIZED' });
       }
 
-      const db = c.get('db') as any;
+      const db = await getZeroDB(sessionUser.id);
+      
+      const domainRecord = await db.findDomainById(input.domainId);
 
-      const domainRecord = await db
-        .select()
-        .from(domain)
-        .where(and(eq(domain.id, input.domainId), eq(domain.userId, sessionUser.id)))
-        .limit(1);
-
-      if (domainRecord.length === 0) {
+      if (!domainRecord) {
         throw new TRPCError({
           code: 'NOT_FOUND',
           message: 'Domain not found',
@@ -150,23 +135,17 @@ export const domainsRouter = router({
           userId: sessionUser.id,
           accessToken: '',
           refreshToken: '',
-          email: `admin@${domainRecord[0].domain}`,
+          email: `admin@${domainRecord.domain}`,
         },
       });
 
       try {
-        const { verified, dkimTokens } = await sesManager.getDomainVerificationStatus(
-          domainRecord[0].domain,
-        );
+        const { verified, dkimTokens } = await sesManager.getDomainVerificationStatus(domainRecord.domain);
 
-        await db
-          .update(domain)
-          .set({
-            verified,
-            dkimTokens,
-            updatedAt: new Date(),
-          })
-          .where(eq(domain.id, input.domainId));
+        await db.updateDomain(input.domainId, { 
+          verified,
+          dkimTokens,
+        });
 
         return { verified, dkimTokens };
       } catch (error) {
@@ -181,16 +160,14 @@ export const domainsRouter = router({
   delete: privateProcedure
     .input(z.object({ domainId: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      const { sessionUser, c } = ctx;
+      const { sessionUser } = ctx;
       if (!sessionUser) {
         throw new TRPCError({ code: 'UNAUTHORIZED' });
       }
 
-      const db = c.get('db') as any;
-
-      await db
-        .delete(domain)
-        .where(and(eq(domain.id, input.domainId), eq(domain.userId, sessionUser.id)));
+      const db = await getZeroDB(sessionUser.id);
+      
+      await db.deleteDomain(input.domainId);
 
       return { success: true };
     }),
@@ -199,30 +176,23 @@ export const domainsRouter = router({
     .input(z.object({ domainId: z.string() }))
     .output(z.array(domainAccountSchema))
     .query(async ({ input, ctx }) => {
-      const { sessionUser, c } = ctx;
+      const { sessionUser } = ctx;
       if (!sessionUser) {
         throw new TRPCError({ code: 'UNAUTHORIZED' });
       }
 
-      const db = c.get('db') as any;
+      const db = await getZeroDB(sessionUser.id);
+      
+      const domainRecord = await db.findDomainById(input.domainId);
 
-      const domainRecord = await db
-        .select()
-        .from(domain)
-        .where(and(eq(domain.id, input.domainId), eq(domain.userId, sessionUser.id)))
-        .limit(1);
-
-      if (domainRecord.length === 0) {
+      if (!domainRecord) {
         throw new TRPCError({
           code: 'NOT_FOUND',
           message: 'Domain not found',
         });
       }
 
-      const accounts = await db
-        .select()
-        .from(domainAccount)
-        .where(eq(domainAccount.domainId, input.domainId));
+      const accounts = await db.findManyDomainAccounts(input.domainId);
 
       return accounts;
     }),
@@ -237,35 +207,26 @@ export const domainsRouter = router({
     )
     .output(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      const { sessionUser, c } = ctx;
+      const { sessionUser } = ctx;
       if (!sessionUser) {
         throw new TRPCError({ code: 'UNAUTHORIZED' });
       }
 
-      const db = c.get('db') as any;
+      const db = await getZeroDB(sessionUser.id);
+      
+      const domainRecord = await db.findDomainById(input.domainId);
 
-      const domainRecord = await db
-        .select()
-        .from(domain)
-        .where(and(eq(domain.id, input.domainId), eq(domain.userId, sessionUser.id)))
-        .limit(1);
-
-      if (domainRecord.length === 0) {
+      if (!domainRecord) {
         throw new TRPCError({
           code: 'NOT_FOUND',
           message: 'Domain not found',
         });
       }
 
-      const existingAccount = await db
-        .select()
-        .from(domainAccount)
-        .where(
-          and(eq(domainAccount.domainId, input.domainId), eq(domainAccount.email, input.email)),
-        )
-        .limit(1);
+      const accounts = await db.findManyDomainAccounts(input.domainId);
+      const existingAccount = accounts.find((account: any) => account.email === input.email);
 
-      if (existingAccount.length > 0) {
+      if (existingAccount) {
         throw new TRPCError({
           code: 'CONFLICT',
           message: 'Email account already exists for this domain',
@@ -273,15 +234,13 @@ export const domainsRouter = router({
       }
 
       const accountId = crypto.randomUUID();
-
-      await db.insert(domainAccount).values({
+      
+      await db.createDomainAccount({
         id: accountId,
         domainId: input.domainId,
         email: input.email,
         name: input.name || null,
         active: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
       });
 
       return { id: accountId };
@@ -290,40 +249,32 @@ export const domainsRouter = router({
   deleteAccount: privateProcedure
     .input(z.object({ accountId: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      const { sessionUser, c } = ctx;
+      const { sessionUser } = ctx;
       if (!sessionUser) {
         throw new TRPCError({ code: 'UNAUTHORIZED' });
       }
 
-      const db = c.get('db') as any;
+      const db = await getZeroDB(sessionUser.id);
+      
+      const account = await db.findDomainAccountById(input.accountId);
 
-      const account = await db
-        .select({ domainId: domainAccount.domainId })
-        .from(domainAccount)
-        .where(eq(domainAccount.id, input.accountId))
-        .limit(1);
-
-      if (account.length === 0) {
+      if (!account) {
         throw new TRPCError({
           code: 'NOT_FOUND',
           message: 'Account not found',
         });
       }
 
-      const domainRecord = await db
-        .select()
-        .from(domain)
-        .where(and(eq(domain.id, account[0].domainId), eq(domain.userId, sessionUser.id)))
-        .limit(1);
+      const domainRecord = await db.findDomainById(account.domainId);
 
-      if (domainRecord.length === 0) {
+      if (!domainRecord) {
         throw new TRPCError({
           code: 'UNAUTHORIZED',
           message: 'Not authorized to delete this account',
         });
       }
 
-      await db.delete(domainAccount).where(eq(domainAccount.id, input.accountId));
+      await db.deleteDomainAccount(input.accountId);
 
       return { success: true };
     }),
