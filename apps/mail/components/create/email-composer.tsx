@@ -33,7 +33,7 @@ import { Avatar, AvatarFallback } from '../ui/avatar';
 import { useTRPC } from '@/providers/query-provider';
 import { useMutation } from '@tanstack/react-query';
 import { useSettings } from '@/hooks/use-settings';
-import { useIsMobile } from '@/hooks/use-mobile';
+
 import { cn, formatFileSize } from '@/lib/utils';
 import { useThread } from '@/hooks/use-threads';
 import { serializeFiles } from '@/lib/schemas';
@@ -117,10 +117,8 @@ export function EmailComposer({
   className,
   autofocus = false,
   settingsLoading = false,
-  replyingTo,
   editorClassName,
 }: EmailComposerProps) {
-  const isMobile = useIsMobile();
   const { data: aliases } = useEmailAliases();
   const { data: settings } = useSettings();
   const [showCc, setShowCc] = useState(initialCc.length > 0);
@@ -145,6 +143,7 @@ export function EmailComposer({
   const [imageQuality, setImageQuality] = useState<ImageQuality>(
     settings?.settings?.imageCompression || 'medium',
   );
+  const [activeReplyId] = useQueryState('activeReplyId');
   const [toggleToolbar, setToggleToolbar] = useState(false);
   const processAndSetAttachments = async (
     filesToProcess: File[],
@@ -353,6 +352,8 @@ export function EmailComposer({
 
       setIsLoading(true);
       setAiGeneratedMessage(null);
+      // Save draft before sending, we want to send drafts instead of sending new emails
+      if (hasUnsavedChanges) await saveDraft();
 
       await onSendEmail({
         to: values.to,
@@ -444,19 +445,11 @@ export function EmailComposer({
 
     if (!hasUnsavedChanges) return;
     const messageText = editor.getText();
-    console.log({
-      messageText,
-      editorText: editor.getText(),
-      initialMessage,
-      editorHTML: editor.getHTML(),
-    });
 
     if (messageText.trim() === initialMessage.trim()) return;
     if (editor.getHTML() === initialMessage.trim()) return;
     if (!values.to.length || !values.subject.length || !messageText.length) return;
     if (aiGeneratedMessage || aiIsLoading || isGeneratingSubject) return;
-
-    console.log('editor.getHTML()', editor.getHTML());
 
     try {
       setIsSavingDraft(true);
@@ -617,7 +610,7 @@ export function EmailComposer({
         className,
       )}
     >
-      <div className="no-scrollbar dark:bg-panelDark flex min-h-0 flex-1 flex-col overflow-y-auto">
+      <div className="no-scrollbar dark:bg-panelDark flex min-h-0 flex-1 flex-col overflow-y-auto rounded-2xl">
         {/* To, Cc, Bcc */}
         <div className="shrink-0 overflow-visible border-b border-[#E7E7E7] pb-2 dark:border-[#252525]">
           <div className="flex justify-between px-3 pt-3">
@@ -649,7 +642,7 @@ export function EmailComposer({
               >
                 <span>Bcc</span>
               </button>
-              {onClose && isMobile && (
+              {onClose && (
                 <button
                   tabIndex={-1}
                   className="flex h-full items-center gap-2 text-sm font-medium text-[#8C8C8C] hover:text-[#A8A8A8]"
@@ -697,33 +690,35 @@ export function EmailComposer({
         </div>
 
         {/* Subject */}
-        <div className="flex items-center gap-2 border-b p-3">
-          <p className="text-sm font-medium text-[#8C8C8C]">Subject:</p>
-          <input
-            className="h-4 w-full bg-transparent text-sm font-normal leading-normal text-black placeholder:text-[#797979] focus:outline-none dark:text-white/90"
-            placeholder="Re: Design review feedback"
-            value={subjectInput}
-            onChange={(e) => {
-              const value = replaceEmojiShortcodes(e.target.value);
-              setValue('subject', value);
-              setHasUnsavedChanges(true);
-            }}
-          />
-          <button
-            onClick={handleGenerateSubject}
-            disabled={isLoading || isGeneratingSubject || messageLength < 1}
-          >
-            <div className="flex items-center justify-center gap-2.5 pl-0.5">
-              <div className="flex h-5 items-center justify-center gap-1 rounded-sm">
-                {isGeneratingSubject ? (
-                  <Loader className="h-3.5 w-3.5 animate-spin fill-black dark:fill-white" />
-                ) : (
-                  <Sparkles className="h-3.5 w-3.5 fill-black dark:fill-white" />
-                )}
+        {!activeReplyId ? (
+          <div className="flex items-center gap-2 border-b p-3">
+            <p className="text-sm font-medium text-[#8C8C8C]">Subject:</p>
+            <input
+              className="h-4 w-full bg-transparent text-sm font-normal leading-normal text-black placeholder:text-[#797979] focus:outline-none dark:text-white/90"
+              placeholder="Re: Design review feedback"
+              value={subjectInput}
+              onChange={(e) => {
+                const value = replaceEmojiShortcodes(e.target.value);
+                setValue('subject', value);
+                setHasUnsavedChanges(true);
+              }}
+            />
+            <button
+              onClick={handleGenerateSubject}
+              disabled={isLoading || isGeneratingSubject || messageLength < 1}
+            >
+              <div className="flex items-center justify-center gap-2.5 pl-0.5">
+                <div className="flex h-5 items-center justify-center gap-1 rounded-sm">
+                  {isGeneratingSubject ? (
+                    <Loader className="h-3.5 w-3.5 animate-spin fill-black dark:fill-white" />
+                  ) : (
+                    <Sparkles className="h-3.5 w-3.5 fill-black dark:fill-white" />
+                  )}
+                </div>
               </div>
-            </div>
-          </button>
-        </div>
+            </button>
+          </div>
+        ) : null}
 
         {/* From */}
         {aliases && aliases.length > 1 ? (

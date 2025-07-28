@@ -1,4 +1,4 @@
-import { format, isToday, isThisMonth, differenceInCalendarMonths } from 'date-fns';
+import { isToday, isThisMonth, differenceInCalendarMonths } from 'date-fns';
 import { getBrowserTimezone } from './timezones';
 import { formatInTimeZone } from 'date-fns-tz';
 import { MAX_URL_LENGTH } from './constants';
@@ -14,6 +14,7 @@ export const FOLDERS = {
   BIN: 'bin',
   DRAFT: 'draft',
   SENT: 'sent',
+  SNOOZED: 'snoozed',
 } as const;
 
 export const LABELS = {
@@ -23,6 +24,7 @@ export const LABELS = {
   IMPORTANT: 'IMPORTANT',
   SENT: 'SENT',
   TRASH: 'TRASH',
+  SNOOZED: 'SNOOZED',
 } as const;
 
 export const FOLDER_NAMES = [
@@ -34,6 +36,7 @@ export const FOLDER_NAMES = [
   'important',
   'sent',
   'draft',
+  'snoozed',
 ];
 
 export const FOLDER_TAGS: Record<string, string[]> = {
@@ -42,6 +45,7 @@ export const FOLDER_TAGS: Record<string, string[]> = {
   [FOLDERS.ARCHIVE]: [],
   [FOLDERS.SENT]: [LABELS.SENT],
   [FOLDERS.BIN]: [LABELS.TRASH],
+  [FOLDERS.SNOOZED]: [LABELS.SNOOZED],
 };
 
 export const getFolderTags = (folder: string): string[] => {
@@ -349,7 +353,6 @@ export const constructReplyBody = (
   originalDate: string,
   originalSender: Sender | undefined,
   otherRecipients: Sender[],
-  quotedMessage?: string,
 ) => {
   const senderName = originalSender?.name || originalSender?.email || 'Unknown Sender';
   const recipientEmails = otherRecipients.map((r) => r.email).join(', ');
@@ -373,7 +376,6 @@ export const constructForwardBody = (
   originalDate: string,
   originalSender: Sender | undefined,
   otherRecipients: Sender[],
-  quotedMessage?: string,
 ) => {
   const senderName = originalSender?.name || originalSender?.email || 'Unknown Sender';
   const recipientEmails = otherRecipients.map((r) => r.email).join(', ');
@@ -492,7 +494,6 @@ export function parseNaturalLanguageSearch(query: string): string {
 export function parseNaturalLanguageDate(query: string): { from?: Date; to?: Date } | null {
   const now = new Date();
   const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth();
 
   // Common date patterns
   const patterns = [

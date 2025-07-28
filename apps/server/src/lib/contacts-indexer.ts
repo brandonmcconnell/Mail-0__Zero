@@ -31,7 +31,7 @@ export async function buildContactsIndex(connectionId: string) {
       let pageCount = 0;
       
       do {
-        const batch = (await agent.list({
+        const batch = (await agent.listThreads({
           folder,
           query: '',
           maxResults: 100,
@@ -44,7 +44,7 @@ export async function buildContactsIndex(connectionId: string) {
         await Promise.allSettled(
           threads.map(async (thread: ThreadSummary) => {
             try {
-              const threadData: IGetThreadResponse = await agent.get(thread.id);
+              const threadData: IGetThreadResponse = await agent.getThread(thread.id);
               threadData.messages.forEach((message: ParsedMessage) => {
                 if (folder === 'sent') {
                   (message.to || []).forEach((r: Sender) => addEmail(r.email, r.name, 3));

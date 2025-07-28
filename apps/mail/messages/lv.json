@@ -370,7 +370,8 @@
       "failedToMute": "Neizdevās apklusināt",
       "failedToUnmute": "Neizdevās atjaunot skaņu",
       "archived": "Arhivēts",
-      "failedToArchive": "Neizdevās arhivēt"
+      "failedToArchive": "Neizdevās arhivēt",
+      "openInNewTab": "Atvērt jaunā cilnē"
     },
     "units": {
       "mb": "{amount} MB"
@@ -404,7 +405,8 @@
       "livesupport": "Tiešsaistes atbalsts",
       "feedback": "Atsauksmes",
       "settings": "Iestatījumi",
-      "voice": "Balss asistents"
+      "voice": "Balss asistents",
+      "snoozed": "Atlikti"
     },
     "settings": {
       "general": "Vispārīgi",

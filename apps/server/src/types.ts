@@ -11,6 +11,19 @@ export interface ISubscribeBatch {
   providerId: EProviders;
 }
 
+export interface IThreadBatch {
+  providerId: EProviders;
+  historyId: string;
+  subscriptionName: string;
+}
+
+// Batch payload for unsnoozing threads via the queue
+export interface ISnoozeBatch {
+  connectionId: string;
+  threadIds: string[];
+  keyNames: string[];
+}
+
 export const defaultLabels = [
   {
     name: 'to respond',
@@ -206,7 +219,6 @@ export interface DeleteAllSpamResponse {
 export enum Tools {
   GetThread = 'getThread',
   ComposeEmail = 'composeEmail',
-  ListThreads = 'listThreads',
   DeleteEmail = 'deleteEmail',
   MarkThreadsRead = 'markThreadsRead',
   MarkThreadsUnread = 'markThreadsUnread',
@@ -220,6 +232,8 @@ export enum Tools {
   AskZeroMailbox = 'askZeroMailbox',
   AskZeroThread = 'askZeroThread',
   WebSearch = 'webSearch',
+  InboxRag = 'inboxRag',
+  BuildGmailSearchQuery = 'buildGmailSearchQuery',
 }
 
 export type AppContext = Context<{ Bindings: Env }>;
