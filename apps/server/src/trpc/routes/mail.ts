@@ -14,7 +14,6 @@ import { getZeroAgent } from '../../lib/server-utils';
 import { env } from 'cloudflare:workers';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
-// Contacts suggestions are now derived directly from the local threads database via the ZeroAgent.
 import { upsertContacts, suggestContacts } from '../../lib/contacts-cache';
 import { scheduleContactsIndexing } from '../../lib/contacts-indexer';
 
@@ -443,7 +442,6 @@ export const mailRouter = router({
         await agent.create(input);
       }
 
-      // Asynchronously update contacts cache
       const contactsToAdd = [...input.to, ...(input.cc ?? []), ...(input.bcc ?? [])];
       ctx.c.executionCtx.waitUntil(upsertContacts(activeConnection.id, contactsToAdd));
 
