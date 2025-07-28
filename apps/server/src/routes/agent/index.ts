@@ -1737,6 +1737,60 @@ export class ZeroDriver extends AIChatAgent<typeof env> {
     }
     return await this.getThreadFromDB(id);
   }
+
+  async suggestRecipients(query: string = '', limit: number = 10) {
+    const lower = query.toLowerCase();
+
+    const rows = this.sql`
+      SELECT latest_sender, latest_received_on
+      FROM threads
+    ` as { latest_sender?: string; latest_received_on?: string }[];
+
+    const map = new Map<string, { email: string; name?: string | null; freq: number; last: number }>();
+
+    for (const row of rows) {
+      if (!row?.latest_sender) continue;
+      try {
+        const sender = JSON.parse(String(row.latest_sender));
+        if (!sender?.email) continue;
+
+        const key = sender.email.toLowerCase();
+        const lastTs = row.latest_received_on ? new Date(String(row.latest_received_on)).getTime() : 0;
+
+        if (!map.has(key)) {
+          map.set(key, {
+            email: sender.email,
+            name: sender.name,
+            freq: 1,
+            last: lastTs,
+          });
+        } else {
+          const entry = map.get(key)!;
+          entry.freq += 1;
+          if (lastTs > entry.last) entry.last = lastTs;
+        }
+      } catch {
+      }
+    }
+
+    let contacts = Array.from(map.values());
+
+    if (lower) {
+      contacts = contacts.filter(
+        (c) =>
+          c.email.toLowerCase().includes(lower) ||
+          (c.name && c.name.toLowerCase().includes(lower)),
+      );
+    }
+
+    contacts.sort((a, b) => b.freq - a.freq || b.last - a.last);
+
+    return contacts.slice(0, limit).map((c) => ({
+      email: c.email,
+      name: c.name,
+      displayText: c.name ? `${c.name} <${c.email}>` : c.email,
+    }));
+  }
 }
 
 export class ZeroAgent extends AIChatAgent<typeof env> {

@@ -3,11 +3,19 @@ import { upsertContacts } from './contacts-cache';
 import type { IGetThreadResponse } from './driver/types';
 import type { ParsedMessage, Sender } from '../types';
 
+const normalise = (email: string) => email.trim().toLowerCase();
+
 type ThreadSummary = { id: string; historyId: string | null; $raw?: unknown };
 
 export async function buildContactsIndex(connectionId: string) {
   console.log(`[ContactsIndexer] Starting full index for ${connectionId}`);
   const agent = await getZeroAgent(connectionId);
+
+  let userEmails: Set<string> = new Set();
+  try {
+    const aliases = await agent.getEmailAliases();
+    userEmails = new Set(aliases.map((a: { email: string }) => normalise(a.email)));
+  } catch {}
   const emailsMap = new Map<string, { email: string; name?: string | null; freq: number }>();
   
   const addEmail = (email: string, name?: string | null, weight = 1) => {
@@ -41,24 +49,43 @@ export async function buildContactsIndex(connectionId: string) {
         const threads: ThreadSummary[] = batch.threads || [];
         if (!threads.length) break;
         
-        await Promise.allSettled(
-          threads.map(async (thread: ThreadSummary) => {
-            try {
-              const threadData: IGetThreadResponse = await agent.getThread(thread.id);
-              threadData.messages.forEach((message: ParsedMessage) => {
-                if (folder === 'sent') {
-                  (message.to || []).forEach((r: Sender) => addEmail(r.email, r.name, 3));
-                  (message.cc || []).forEach((r: Sender) => addEmail(r.email, r.name, 2));
-                  (message.bcc || []).forEach((r: Sender) => addEmail(r.email, r.name, 2));
-                }
-                if (message.sender?.email) {
-                  addEmail(message.sender.email, message.sender.name, 1);
-                }
-              });
-            } catch (e) {
-            }
-          })
-        );
+        const processThread = async (thread: ThreadSummary) => {
+          try {
+            const threadData: IGetThreadResponse = await agent.getThread(thread.id);
+
+            if (!threadData || threadData.messages.length === 0) return;
+
+            threadData.messages.forEach((message: ParsedMessage) => {
+              if (message.sender?.email && !userEmails.has(normalise(message.sender.email))) {
+                addEmail(message.sender.email, message.sender.name, 1);
+              }
+
+              const weightBase = 2;
+              const toList = message.to || [];
+              const ccList = message.cc || [];
+              const bccList = message.bcc || [];
+
+              const addRecipients = (list: Sender[], weight: number) =>
+                list.forEach((r) => {
+                  if (!r.email) return;
+                  if (userEmails.has(normalise(r.email))) return;
+                  addEmail(r.email, r.name, weight);
+                });
+
+              const userIsSender = message.sender?.email && userEmails.has(normalise(message.sender.email));
+
+              addRecipients(toList, userIsSender ? weightBase + 1 : weightBase);
+              addRecipients(ccList, userIsSender ? weightBase : weightBase - 1);
+              addRecipients(bccList, userIsSender ? weightBase : weightBase - 1);
+            });
+          } catch {}
+        };
+
+        const concurrency = 5;
+        for (let i = 0; i < threads.length; i += concurrency) {
+          const slice = threads.slice(i, i + concurrency);
+          await Promise.allSettled(slice.map(processThread));
+        }
         
         totalProcessed += threads.length;
         pageCount++;
@@ -68,9 +95,6 @@ export async function buildContactsIndex(connectionId: string) {
           console.log(`[ContactsIndexer] Processed ${totalProcessed} threads, saving checkpoint...`);
           await upsertContacts(connectionId, Array.from(emailsMap.values()));
         }
-        
-        if (pageCount > 50) break;
-        
       } while (cursor);
       
     } catch (error) {

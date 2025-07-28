@@ -14,7 +14,8 @@ import { getZeroAgent } from '../../lib/server-utils';
 import { env } from 'cloudflare:workers';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
-import { suggestContacts, upsertContacts } from '../../lib/contacts-cache';
+// Contacts suggestions are now derived directly from the local threads database via the ZeroAgent.
+import { upsertContacts, suggestContacts } from '../../lib/contacts-cache';
 import { scheduleContactsIndexing } from '../../lib/contacts-indexer';
 
 const senderSchema = z.object({
@@ -36,17 +37,38 @@ const getFolderLabelId = (folder: string) => {
 
 export const mailRouter = router({
   suggestRecipients: activeDriverProcedure
-    .input(z.object({ query: z.string().optional().default(''), limit: z.number().optional().default(10) }))
+    .input(
+      z.object({
+        query: z.string().optional().default(''),
+        limit: z.number().optional().default(10),
+      }),
+    )
     .query(async ({ ctx, input }) => {
       const { activeConnection } = ctx;
-      
-      const result = await suggestContacts(activeConnection.id, input.query, input.limit);
-      
-      if (result.length === 0) {
+      const agent = await getZeroAgent(activeConnection.id);
+
+      const kvSuggestions = await suggestContacts(
+        activeConnection.id,
+        input.query,
+        input.limit,
+      );
+
+      const senderSuggestions = await agent.suggestRecipients(input.query, input.limit);
+
+      const map = new Map<string, { email: string; name?: string | null; displayText: string }>();
+      [...kvSuggestions, ...senderSuggestions].forEach((s) => {
+        if (!map.has(s.email.toLowerCase())) {
+          map.set(s.email.toLowerCase(), s);
+        }
+      });
+
+      const merged = Array.from(map.values());
+
+      if (merged.length === 0) {
         ctx.c.executionCtx.waitUntil(scheduleContactsIndexing(activeConnection.id));
       }
-      
-      return result;
+
+      return merged.slice(0, input.limit);
     }),
   get: activeDriverProcedure
     .input(

@@ -210,6 +210,10 @@ export class DriverRpcDO extends RpcTarget {
     return await this.mainDo.getMessageAttachments(messageId);
   }
 
+  async suggestRecipients(query: string = '', limit: number = 10) {
+    return await this.mainDo.suggestRecipients(query, limit);
+  }
+
   async setupAuth() {
     return await this.mainDo.setupAuth();
   }
