@@ -1,7 +1,6 @@
 import { type inferRouterInputs, type inferRouterOutputs } from '@trpc/server';
 import { cookiePreferencesRouter } from './routes/cookies';
 import { connectionsRouter } from './routes/connections';
-import { categoriesRouter } from './routes/categories';
 import { shortcutRouter } from './routes/shortcut';
 import { settingsRouter } from './routes/settings';
 import { getContext } from 'hono/context-storage';
