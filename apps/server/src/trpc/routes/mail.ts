@@ -442,7 +442,9 @@ export const mailRouter = router({
         await agent.create(input);
       }
 
-      const contactsToAdd = [...input.to, ...(input.cc ?? []), ...(input.bcc ?? [])];
+      const contactsToAdd = [...input.to, ...(input.cc ?? []), ...(input.bcc ?? [])].map(
+        (rec) => ({ email: rec.email, name: rec.name }),
+      );      
       ctx.c.executionCtx.waitUntil(upsertContacts(activeConnection.id, contactsToAdd));
 
       ctx.c.executionCtx.waitUntil(afterTask());
