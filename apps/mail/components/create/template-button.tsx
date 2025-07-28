@@ -23,6 +23,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { TRPCClientError } from '@trpc/client';
 
 type RecipientField = 'to' | 'cc' | 'bcc';
 
@@ -92,15 +93,6 @@ const TemplateButtonComponent: React.FC<TemplateButtonProps> = ({
       return;
     }
 
-    const nameExists = templates.some(template => 
-      template.name.toLowerCase() === templateName.trim().toLowerCase()
-    );
-    
-    if (nameExists) {
-      toast.error(`A template named "${templateName.trim()}" already exists. Please choose a different name.`);
-      return;
-    }
-
     setIsSaving(true);
     try {
       const newTemplate = await createTemplate({
@@ -120,8 +112,12 @@ const TemplateButtonComponent: React.FC<TemplateButtonProps> = ({
       toast.success('Template saved');
       setTemplateName('');
       setSaveDialogOpen(false);
-    } catch (error: any) {
-      toast.error('Failed to save template');
+    } catch (error) {
+      if (error instanceof TRPCClientError) {
+        toast.error(error.message);
+      } else {
+        toast.error('Failed to save template');
+      }
     } finally {
       setIsSaving(false);
     }
@@ -142,16 +138,16 @@ const TemplateButtonComponent: React.FC<TemplateButtonProps> = ({
     async (templateId: string, templateName: string) => {
       try {
         await deleteTemplateMutation({ id: templateId });
-        queryClient.setQueryData(trpc.templates.list.queryKey(), (old: TemplatesQueryData) => {
-          if (!old?.templates) return old;
-          return {
-            templates: old.templates.filter((temp: Template) => temp.id !== templateId),
-          };
+        await queryClient.invalidateQueries({
+          queryKey: trpc.templates.list.queryKey(),
         });
         toast.success('Template deleted');
       } catch (err) {
-        console.error('Delete failed:', err);
-        toast.error('Failed to delete template');
+        if (err instanceof TRPCClientError) {
+          toast.error(err.message);
+        } else {
+          toast.error('Failed to delete template');
+        }
       }
     },
     [deleteTemplateMutation, queryClient, trpc.templates.list],

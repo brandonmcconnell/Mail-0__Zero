@@ -1,5 +1,6 @@
 import { getZeroDB } from './server-utils';
 import { randomUUID } from 'node:crypto';
+import { TRPCError } from '@trpc/server';
 
 type EmailTemplate = {
   id: string;
@@ -16,7 +17,7 @@ type EmailTemplate = {
 
 export class TemplatesManager {
   async listTemplates(userId: string) {
-    const db = getZeroDB(userId);
+    const db = await getZeroDB(userId);
     return await db.listEmailTemplates();
   }
 
@@ -33,18 +34,27 @@ export class TemplatesManager {
     },
   ) {
     if (payload.name.length > 100) {
-      throw new Error('Template name must be at most 100 characters');
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'Template name must be at most 100 characters',
+      });
     }
     
     if (payload.subject && payload.subject.length > 500) {
-      throw new Error('Template subject must be at most 500 characters');
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'Template subject must be at most 500 characters',
+      });
     }
     
     if (payload.body && payload.body.length > 50000) {
-      throw new Error('Template body must be at most 50,000 characters');
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'Template body must be at most 50,000 characters',
+      });
     }
 
-    const db = getZeroDB(userId);
+    const db = await getZeroDB(userId);
     
     const existingTemplates = (await db.listEmailTemplates()) as EmailTemplate[];
     const nameExists = existingTemplates.some((template: EmailTemplate) => 
@@ -52,7 +62,10 @@ export class TemplatesManager {
     );
     
     if (nameExists) {
-      throw new Error(`A template named "${payload.name}" already exists. Please choose a different name.`);
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: `A template named "${payload.name}" already exists. Please choose a different name.`,
+      });
     }
     
     const id = payload.id ?? randomUUID();
@@ -69,7 +82,7 @@ export class TemplatesManager {
   }
 
   async deleteTemplate(userId: string, templateId: string) {
-    const db = getZeroDB(userId);
+    const db = await getZeroDB(userId);
     await db.deleteEmailTemplate(templateId);
     return true;
   }

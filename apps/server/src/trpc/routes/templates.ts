@@ -25,18 +25,8 @@ export const templatesRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      try {
-        const template = await ctx.templatesManager.createTemplate(ctx.sessionUser.id, input);
-        return { template };
-      } catch (error) {
-        if (error instanceof Error && error.message.includes('already exists')) {
-          throw new TRPCError({
-            code: 'BAD_REQUEST',
-            message: error.message,
-          });
-        }
-        throw error;
-      }
+      const template = await ctx.templatesManager.createTemplate(ctx.sessionUser.id, input);
+      return { template };
     }),
   delete: templatesProcedure
     .input(z.object({ id: z.string() }))
