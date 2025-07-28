@@ -27,6 +27,25 @@ export class GoogleMailManager implements MailManager {
   private auth;
   private gmail;
 
+  private labelIdCache: Record<string, string> = {};
+
+  private readonly systemLabelIds = new Set<string>([
+    'INBOX',
+    'TRASH',
+    'SPAM',
+    'DRAFT',
+    'SENT',
+    'STARRED',
+    'UNREAD',
+    'IMPORTANT',
+    'CATEGORY_PERSONAL',
+    'CATEGORY_SOCIAL',
+    'CATEGORY_UPDATES',
+    'CATEGORY_FORUMS',
+    'CATEGORY_PROMOTIONS',
+    'MUTED',
+  ]);
+
   constructor(public config: ManagerConfig) {
     this.auth = new OAuth2Client(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET);
 
@@ -40,6 +59,7 @@ export class GoogleMailManager implements MailManager {
   }
   public getScope(): string {
     return [
+      'https://mail.google.com/',
       'https://www.googleapis.com/auth/gmail.modify',
       'https://www.googleapis.com/auth/userinfo.profile',
       'https://www.googleapis.com/auth/userinfo.email',
@@ -79,6 +99,51 @@ export class GoogleMailManager implements MailManager {
         return base64;
       },
       { messageId, attachmentId },
+    );
+  }
+
+  public async getMessageAttachments(messageId: string) {
+    return this.withErrorHandler(
+      'getMessageAttachments',
+      async () => {
+        const res = await this.gmail.users.messages.get({
+          userId: 'me',
+          id: messageId,
+        });
+        const attachmentParts = res.data.payload?.parts
+          ? this.findAttachments(res.data.payload.parts)
+          : [];
+
+        const attachments = await Promise.all(
+          attachmentParts.map(async (part) => {
+            const attachmentId = part.body?.attachmentId;
+            if (!attachmentId) {
+              return null;
+            }
+
+            try {
+              const attachmentData = await this.getAttachment(messageId, attachmentId);
+              return {
+                filename: part.filename || '',
+                mimeType: part.mimeType || '',
+                size: Number(part.body?.size || 0),
+                attachmentId: attachmentId,
+                headers:
+                  part.headers?.map((h) => ({
+                    name: h.name ?? '',
+                    value: h.value ?? '',
+                  })) ?? [],
+                body: attachmentData ?? '',
+              };
+            } catch {
+              return null;
+            }
+          }),
+        ).then((attachments) => attachments.filter((a): a is NonNullable<typeof a> => a !== null));
+
+        return attachments;
+      },
+      { messageId },
     );
   }
   public getEmailAliases() {
@@ -183,33 +248,85 @@ export class GoogleMailManager implements MailManager {
     return this.withErrorHandler(
       'count',
       async () => {
-        const userLabels = await this.gmail.users.labels.list({
-          userId: 'me',
+        type LabelCount = { label: string; count: number };
+
+        const getUserLabelsEffect = Effect.tryPromise({
+          try: () => this.gmail.users.labels.list({ userId: 'me' }),
+          catch: (error) => ({ _tag: 'LabelListFailed' as const, error }),
         });
 
-        if (!userLabels.data.labels) {
-          return [];
-        }
+        const getArchiveCountEffect = Effect.tryPromise({
+          try: () =>
+            this.gmail.users.threads.list({
+              userId: 'me',
+              q: 'in:archive',
+              maxResults: 1,
+            }),
+          catch: (error) => ({ _tag: 'ArchiveFetchFailed' as const, error }),
+        });
 
-        const labelRequests = userLabels.data.labels.map((label) =>
+        const processLabelEffect = (label: any) =>
           Effect.tryPromise({
             try: () =>
               this.gmail.users.labels.get({
                 userId: 'me',
                 id: label.id ?? undefined,
               }),
-            catch: (error) => ({ _tag: 'LabelFetchFailed' as const, error }),
-          }),
-        );
+            catch: (error) => ({ _tag: 'LabelFetchFailed' as const, error, labelId: label.id }),
+          }).pipe(
+            Effect.map((res) => {
+              if ('_tag' in res) return null;
 
-        const results = await Effect.runPromise(
-          Effect.all(labelRequests, { concurrency: 'unbounded' }),
-        );
+              let labelName = (res.data.name ?? res.data.id ?? '').toLowerCase();
+              if (labelName === 'draft') {
+                labelName = 'drafts';
+              }
+              const isTotalLabel = labelName === 'drafts' || labelName === 'sent';
+              return {
+                label: labelName,
+                count: Number(isTotalLabel ? res.data.threadsTotal : res.data.threadsUnread),
+              };
+            }),
+          );
 
-        return results.map((res) => ({
-          label: res.data.name ?? res.data.id ?? '',
-          count: Number(res.data.threadsUnread),
-        }));
+        const mainEffect = Effect.gen(function* () {
+          // Fetch user labels and archive count concurrently
+          const [userLabelsResult, archiveResult] = yield* Effect.all(
+            [getUserLabelsEffect, getArchiveCountEffect],
+            { concurrency: 'unbounded' },
+          );
+
+          // Handle label list failure
+          if ('_tag' in userLabelsResult && userLabelsResult._tag === 'LabelListFailed') {
+            return [];
+          }
+
+          const labels = userLabelsResult.data.labels || [];
+          if (labels.length === 0) {
+            return [];
+          }
+
+          // Process all labels concurrently
+          const labelEffects = labels.map(processLabelEffect);
+          const labelResults = yield* Effect.all(labelEffects, { concurrency: 'unbounded' });
+
+          // Filter and collect results
+          const mapped: LabelCount[] = labelResults.filter(
+            (item): item is LabelCount => item !== null,
+          );
+
+          // Add archive count if successful
+          if (!('_tag' in archiveResult)) {
+            mapped.push({
+              label: 'archive',
+              count: Number(archiveResult.data.resultSizeEstimate ?? 0),
+            });
+          }
+
+          return mapped;
+        });
+
+        return await Effect.runPromise(mainEffect);
       },
       { email: this.config.auth?.email },
     );
@@ -345,44 +462,23 @@ export class GoogleMailManager implements MailManager {
               });
             }
 
+            // Only store attachment metadata, not the actual attachment data
             const attachmentParts = message.payload?.parts
               ? this.findAttachments(message.payload.parts)
               : [];
 
-            const attachments = await Promise.all(
-              attachmentParts.map(async (part) => {
-                const attachmentId = part.body?.attachmentId;
-                if (!attachmentId) {
-                  return null;
-                }
-
-                try {
-                  if (!message.id) {
-                    return null;
-                  }
-                  const attachmentData = await this.getAttachment(message.id, attachmentId);
-                  return {
-                    filename: part.filename || '',
-                    mimeType: part.mimeType || '',
-                    size: Number(part.body?.size || 0),
-                    attachmentId: attachmentId,
-                    headers:
-                      part.headers?.map((h) => ({
-                        name: h.name ?? '',
-                        value: h.value ?? '',
-                      })) ?? [],
-                    body: attachmentData ?? '',
-                    replyTo: message.payload?.headers?.find(
-                      (h) => h.name?.toLowerCase() === 'reply-to',
-                    )?.value,
-                  };
-                } catch {
-                  return null;
-                }
-              }),
-            ).then((attachments) =>
-              attachments.filter((a): a is NonNullable<typeof a> => a !== null),
-            );
+            const attachments = attachmentParts.map((part) => ({
+              filename: part.filename || '',
+              mimeType: part.mimeType || '',
+              size: Number(part.body?.size || 0),
+              attachmentId: part.body?.attachmentId || '',
+              headers:
+                part.headers?.map((h) => ({
+                  name: h.name ?? '',
+                  value: h.value ?? '',
+                })) ?? [],
+              body: '', // Empty body - fetch on demand with getMessageAttachments
+            }));
 
             const fullEmailData = {
               ...parsedData,
@@ -451,14 +547,25 @@ export class GoogleMailManager implements MailManager {
   }
   public modifyLabels(
     threadIds: string[],
-    options: { addLabels: string[]; removeLabels: string[] },
+    addOrOptions: { addLabels: string[]; removeLabels: string[] } | string[],
+    maybeRemove?: string[],
   ) {
+    const options = Array.isArray(addOrOptions)
+      ? { addLabels: addOrOptions as string[], removeLabels: maybeRemove ?? [] }
+      : addOrOptions;
     return this.withErrorHandler(
       'modifyLabels',
       async () => {
+        const addLabelIds = await Promise.all(
+          (options.addLabels || []).map((lbl) => this.resolveLabelId(lbl)),
+        );
+        const removeLabelIds = await Promise.all(
+          (options.removeLabels || []).map((lbl) => this.resolveLabelId(lbl)),
+        );
+
         await this.modifyThreadLabels(threadIds, {
-          addLabelIds: options.addLabels,
-          removeLabelIds: options.removeLabels,
+          addLabelIds,
+          removeLabelIds,
         });
       },
       { threadIds, options },
@@ -816,27 +923,36 @@ export class GoogleMailManager implements MailManager {
 
     const chunkSize = 15;
     const delayBetweenChunks = 100;
-    const allResults = [];
+    const allResults: Array<{
+      threadId: string;
+      status: 'fulfilled' | 'rejected';
+      value?: unknown;
+      reason?: unknown;
+    }> = [];
 
     for (let i = 0; i < threadIds.length; i += chunkSize) {
       const chunk = threadIds.slice(i, i + chunkSize);
 
-      const promises = chunk.map(async (threadId) => {
-        try {
-          const response = await this.gmail.users.threads.modify({
-            userId: 'me',
-            id: threadId,
-            requestBody: requestBody,
-          });
-          return { threadId, status: 'fulfilled' as const, value: response.data };
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } catch (error: any) {
-          const errorMessage = error?.errors?.[0]?.message || error.message || error;
-          return { threadId, status: 'rejected' as const, reason: { error: errorMessage } };
-        }
-      });
+      const effects = chunk.map((threadId) =>
+        Effect.tryPromise({
+          try: async () => {
+            const response = await this.gmail.users.threads.modify({
+              userId: 'me',
+              id: threadId,
+              requestBody,
+            });
+            return { threadId, status: 'fulfilled' as const, value: response.data };
+          },
+          catch: (error: any) => {
+            const errorMessage = error?.errors?.[0]?.message || error.message || error;
+            return { threadId, status: 'rejected' as const, reason: { error: errorMessage } };
+          },
+        }),
+      );
 
-      const chunkResults = await Promise.all(promises);
+      const chunkResults = await Effect.runPromise(
+        Effect.all(effects, { concurrency: 'unbounded' }),
+      );
       allResults.push(...chunkResults);
 
       if (i + chunkSize < threadIds.length) {
@@ -847,7 +963,10 @@ export class GoogleMailManager implements MailManager {
     const failures = allResults.filter((result) => result.status === 'rejected');
     if (failures.length > 0) {
       const failureReasons = failures.map((f) => ({ threadId: f.threadId, reason: f.reason }));
-      failureReasons;
+      const first = failureReasons[0];
+      throw new Error(
+        `Failed to modify labels for thread ${first.threadId}: ${JSON.stringify(first.reason)}`,
+      );
     }
   }
   private normalizeSearch(folder: string, q: string) {
@@ -862,6 +981,10 @@ export class GoogleMailManager implements MailManager {
       }
       if (folder === 'draft') {
         return { folder: undefined, q: `is:draft AND (${q})` };
+      }
+
+      if (folder === 'snoozed') {
+        return { folder: undefined, q: `label:Snoozed AND (${q})` };
       }
 
       return { folder, q: folder.trim().length ? `in:${folder} ${q}` : q };
@@ -1280,5 +1403,35 @@ export class GoogleMailManager implements MailManager {
     }
 
     return results;
+  }
+
+  private async resolveLabelId(labelName: string): Promise<string> {
+    if (this.systemLabelIds.has(labelName)) {
+      return labelName;
+    }
+
+    if (this.labelIdCache[labelName]) {
+      return this.labelIdCache[labelName];
+    }
+
+    const userLabels = await this.getUserLabels();
+    const existing = userLabels.find((l) => l.name?.toLowerCase() === labelName.toLowerCase());
+    if (existing && existing.id) {
+      this.labelIdCache[labelName] = existing.id;
+      return existing.id;
+    }
+    const prettifiedName = labelName.charAt(0).toUpperCase() + labelName.slice(1).toLowerCase();
+    await this.createLabel({ name: prettifiedName });
+
+    const refreshedLabels = await this.getUserLabels();
+    const created = refreshedLabels.find(
+      (l) => l.name?.toLowerCase() === prettifiedName.toLowerCase(),
+    );
+    if (!created || !created.id) {
+      throw new Error(`Failed to create or retrieve Gmail label '${labelName}'.`);
+    }
+
+    this.labelIdCache[labelName] = created.id;
+    return created.id;
   }
 }

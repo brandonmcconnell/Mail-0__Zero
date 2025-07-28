@@ -17,13 +17,19 @@ import {
   SummarizeThread,
   ThreadLabels,
 } from './lib/brain.fallback.prompts';
+import {
+  generateAutomaticDraft,
+  shouldGenerateDraft,
+  analyzeEmailIntent,
+} from './thread-workflow-utils';
 import { defaultLabels, EPrompts, EProviders, type ParsedMessage, type Sender } from './types';
+import { getServiceAccount } from './lib/factories/google-subscription.factory';
+import { EWorkflowType, getPromptName, runWorkflow } from './pipelines';
 import { getZeroAgent } from './lib/server-utils';
 import { type gmail_v1 } from '@googleapis/gmail';
-import { getPromptName } from './pipelines';
+import { Effect, Console, Logger } from 'effect';
 import { env } from 'cloudflare:workers';
 import { connection } from './db/schema';
-import { Effect, Console } from 'effect';
 import * as cheerio from 'cheerio';
 import { eq } from 'drizzle-orm';
 import { createDb } from './db';
@@ -37,6 +43,9 @@ const log = (message: string, ...args: any[]) => {
   }
   return 'no message';
 };
+
+// Configure pretty logger to stderr
+export const loggerLayer = Logger.add(Logger.prettyLogger({ stderr: true }));
 
 const isValidUUID = (str: string): boolean => {
   const regex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -60,7 +69,7 @@ type MainWorkflowError =
 
 const validateArguments = (
   params: MainWorkflowParams,
-  serviceAccount: any,
+  serviceAccount: { project_id: string },
 ): Effect.Effect<string, MainWorkflowError> =>
   Effect.gen(function* () {
     yield* Console.log('[MAIN_WORKFLOW] Validating arguments');
@@ -80,8 +89,12 @@ const validateArguments = (
     return connectionId;
   });
 
-const override = false;
-
+/**
+ * This function runs the main workflow. The main workflow is responsible for processing incoming messages from a Pub/Sub subscription and passing them to the appropriate pipeline.
+ * It validates the subscription name and extracts the connection ID.
+ * @param params
+ * @returns
+ */
 export const runMainWorkflow = (
   params: MainWorkflowParams,
 ): Effect.Effect<string, MainWorkflowError> =>
@@ -90,19 +103,7 @@ export const runMainWorkflow = (
 
     const { providerId, historyId } = params;
 
-    let serviceAccount = null;
-    if (override) {
-      serviceAccount = override;
-    } else {
-      if (!env.GOOGLE_S_ACCOUNT || env.GOOGLE_S_ACCOUNT === '{}') {
-        return yield* Effect.fail({
-          _tag: 'MissingEnvironmentVariable' as const,
-          variable: 'GOOGLE_S_ACCOUNT',
-        });
-      }
-
-      serviceAccount = JSON.parse(env.GOOGLE_S_ACCOUNT);
-    }
+    const serviceAccount = getServiceAccount();
 
     const connectionId = yield* validateArguments(params, serviceAccount);
 
@@ -129,7 +130,7 @@ export const runMainWorkflow = (
         nextHistoryId: historyId,
       };
 
-      const result = yield* runZeroWorkflow(zeroWorkflowParams).pipe(
+      const result = yield* runWorkflow(EWorkflowType.ZERO, zeroWorkflowParams).pipe(
         Effect.mapError(
           (error): MainWorkflowError => ({ _tag: 'WorkflowCreationFailed' as const, error }),
         ),
@@ -146,7 +147,10 @@ export const runMainWorkflow = (
 
     yield* Console.log('[MAIN_WORKFLOW] Workflow completed successfully');
     return 'Workflow completed successfully';
-  }).pipe(Effect.tapError((error) => Console.log('[MAIN_WORKFLOW] Error in workflow:', error)));
+  }).pipe(
+    Effect.tapError((error) => Console.log('[MAIN_WORKFLOW] Error in workflow:', error)),
+    Effect.provide(loggerLayer),
+  );
 
 // Define the ZeroWorkflow parameters type
 type ZeroWorkflowParams = {
@@ -164,7 +168,8 @@ type ZeroWorkflowError =
   | { _tag: 'UnsupportedProvider'; providerId: string }
   | { _tag: 'DatabaseError'; error: unknown }
   | { _tag: 'GmailApiError'; error: unknown }
-  | { _tag: 'WorkflowCreationFailed'; error: unknown };
+  | { _tag: 'WorkflowCreationFailed'; error: unknown }
+  | { _tag: 'LabelModificationFailed'; error: unknown; threadId: string };
 
 export const runZeroWorkflow = (
   params: ZeroWorkflowParams,
@@ -174,16 +179,22 @@ export const runZeroWorkflow = (
     const { connectionId, historyId, nextHistoryId } = params;
 
     const historyProcessingKey = `history_${connectionId}__${historyId}`;
-    const isProcessing = yield* Effect.tryPromise({
-      try: () => env.gmail_processing_threads.get(historyProcessingKey),
+
+    // Atomic lock acquisition to prevent race conditions
+    const lockAcquired = yield* Effect.tryPromise({
+      try: async () => {
+        const response = await env.gmail_processing_threads.put(historyProcessingKey, 'true', {
+          expirationTtl: 3600,
+        });
+        return response !== null; // null means key already existed
+      },
       catch: (error) => ({ _tag: 'WorkflowCreationFailed' as const, error }),
     });
 
-    if (isProcessing === 'true') {
+    if (!lockAcquired) {
       yield* Console.log('[ZERO_WORKFLOW] History already being processed:', {
         connectionId,
         historyId,
-        processingStatus: isProcessing,
       });
       return yield* Effect.fail({
         _tag: 'HistoryAlreadyProcessing' as const,
@@ -192,12 +203,10 @@ export const runZeroWorkflow = (
       });
     }
 
-    yield* Effect.tryPromise({
-      try: () =>
-        env.gmail_processing_threads.put(historyProcessingKey, 'true', { expirationTtl: 3600 }),
-      catch: (error) => ({ _tag: 'WorkflowCreationFailed' as const, error }),
-    });
-    yield* Console.log('[ZERO_WORKFLOW] Set processing flag for history:', historyProcessingKey);
+    yield* Console.log(
+      '[ZERO_WORKFLOW] Acquired processing lock for history:',
+      historyProcessingKey,
+    );
 
     const { db, conn } = createDb(env.HYPERDRIVE.connectionString);
 
@@ -221,6 +230,11 @@ export const runZeroWorkflow = (
       catch: (error) => ({ _tag: 'DatabaseError' as const, error }),
     });
 
+    yield* Effect.tryPromise({
+      try: async () => conn.end(),
+      catch: (error) => ({ _tag: 'DatabaseError' as const, error }),
+    });
+
     const agent = yield* Effect.tryPromise({
       try: async () => await getZeroAgent(foundConnection.id),
       catch: (error) => ({ _tag: 'DatabaseError' as const, error }),
@@ -241,11 +255,6 @@ export const runZeroWorkflow = (
         catch: (error) => ({ _tag: 'GmailApiError' as const, error }),
       });
 
-      if (!history.length) {
-        yield* Console.log('[ZERO_WORKFLOW] No history found, skipping');
-        return 'No history found';
-      }
-
       yield* Effect.tryPromise({
         try: () => {
           console.log('[ZERO_WORKFLOW] Updating next history ID:', nextHistoryId);
@@ -254,97 +263,199 @@ export const runZeroWorkflow = (
         catch: (error) => ({ _tag: 'WorkflowCreationFailed' as const, error }),
       });
 
-      // Extract thread IDs from history
-      const threadIds = new Set<string>();
-      history.forEach((historyItem) => {
-        if (historyItem.messagesAdded) {
-          historyItem.messagesAdded.forEach((messageAdded) => {
-            if (messageAdded.message?.threadId) {
-              threadIds.add(messageAdded.message.threadId);
-            }
-          });
-        }
-        if (historyItem.labelsAdded) {
-          historyItem.labelsAdded.forEach((labelAdded) => {
-            if (labelAdded.message?.threadId) {
-              threadIds.add(labelAdded.message.threadId);
-            }
-          });
-        }
-        if (historyItem.labelsRemoved) {
-          historyItem.labelsRemoved.forEach((labelRemoved) => {
-            if (labelRemoved.message?.threadId) {
-              threadIds.add(labelRemoved.message.threadId);
-            }
-          });
-        }
-      });
-
-      yield* Console.log('[ZERO_WORKFLOW] Found unique thread IDs:', Array.from(threadIds));
-
-      // Process all threads concurrently using Effect.all
-      if (threadIds.size > 0) {
-        const threadWorkflowParams = Array.from(threadIds).map((threadId) => ({
-          connectionId,
-          threadId,
-          providerId: foundConnection.providerId,
-        }));
-
-        const threadResults = yield* Effect.all(
-          threadWorkflowParams.map((params) =>
-            Effect.gen(function* () {
-              // Set processing flag for thread
-              yield* Effect.tryPromise({
-                try: () => {
-                  console.log(
-                    '[ZERO_WORKFLOW] Setting processing flag for thread:',
-                    params.threadId,
-                  );
-                  return env.gmail_processing_threads.put(params.threadId.toString(), 'true', {
-                    expirationTtl: 1800,
-                  });
-                },
-                catch: (error) => ({ _tag: 'WorkflowCreationFailed' as const, error }),
-              });
-
-              // Check if thread is already processing
-              const isProcessing = yield* Effect.tryPromise({
-                try: () => env.gmail_processing_threads.get(params.threadId.toString()),
-                catch: (error) => ({ _tag: 'WorkflowCreationFailed' as const, error }),
-              });
-
-              if (isProcessing === 'true') {
-                yield* Console.log('[ZERO_WORKFLOW] Thread already processing:', params.threadId);
-                return 'Thread already processing';
-              }
-
-              // Run the thread workflow
-              return yield* runThreadWorkflow(params).pipe(
-                Effect.mapError(
-                  (error): ZeroWorkflowError => ({
-                    _tag: 'WorkflowCreationFailed' as const,
-                    error,
-                  }),
-                ),
-              );
-            }),
-          ),
-          { concurrency: 1 }, // Process up to 5 threads concurrently
-        );
-
-        yield* Console.log('[ZERO_WORKFLOW] All thread workflows completed:', threadResults.length);
-      } else {
-        yield* Console.log('[ZERO_WORKFLOW] No threads to process');
+      if (!history.length) {
+        yield* Console.log('[ZERO_WORKFLOW] No history found, skipping');
+        return 'No history found';
       }
 
-      //   // Clean up processing flag
-      //   yield* Effect.tryPromise({
-      //     try: () => {
-      //       console.log('[ZERO_WORKFLOW] Clearing processing flag for history:', historyProcessingKey);
-      //       return env.gmail_processing_threads.delete(historyProcessingKey);
-      //     },
-      //     catch: (error) => ({ _tag: 'WorkflowCreationFailed' as const, error }),
-      //   }).pipe(Effect.orElse(() => Effect.succeed(null)));
+      // Extract thread IDs from history and track label changes
+      const threadsAdded = new Set<string>();
+      const threadLabelChanges = new Map<
+        string,
+        { addLabels: Set<string>; removeLabels: Set<string> }
+      >();
+
+      // Optimal single-pass functional processing
+      const processLabelChange = (
+        labelChange: { message?: gmail_v1.Schema$Message; labelIds?: string[] | null },
+        isAddition: boolean,
+      ) => {
+        const threadId = labelChange.message?.threadId;
+        if (!threadId || !labelChange.labelIds?.length) return;
+
+        let changes = threadLabelChanges.get(threadId);
+        if (!changes) {
+          changes = { addLabels: new Set<string>(), removeLabels: new Set<string>() };
+          threadLabelChanges.set(threadId, changes);
+        }
+
+        const targetSet = isAddition ? changes.addLabels : changes.removeLabels;
+        labelChange.labelIds.forEach((labelId) => targetSet.add(labelId));
+      };
+
+      history.forEach((historyItem) => {
+        // Extract thread IDs from messages
+        historyItem.messagesAdded?.forEach((msg) => {
+          if (msg.message?.threadId) {
+            threadsAdded.add(msg.message.threadId);
+          }
+        });
+
+        // Process label changes using shared helper
+        historyItem.labelsAdded?.forEach((labelAdded) => processLabelChange(labelAdded, true));
+        historyItem.labelsRemoved?.forEach((labelRemoved) =>
+          processLabelChange(labelRemoved, false),
+        );
+      });
+
+      yield* Console.log(
+        '[ZERO_WORKFLOW] Found unique thread IDs:',
+        Array.from(threadLabelChanges.keys()),
+        Array.from(threadsAdded),
+      );
+
+      if (threadsAdded.size > 0) {
+        const threadWorkflowParams = Array.from(threadsAdded);
+
+        // Sync threads with proper error handling - use allSuccesses to collect successful syncs
+        const syncResults = yield* Effect.allSuccesses(
+          threadWorkflowParams.map((threadId) =>
+            Effect.tryPromise({
+              try: async () => {
+                const result = await agent.syncThread({ threadId });
+                console.log(`[ZERO_WORKFLOW] Successfully synced thread ${threadId}`);
+                return { threadId, result };
+              },
+              catch: (error) => {
+                console.error(`[ZERO_WORKFLOW] Failed to sync thread ${threadId}:`, error);
+                // Let this effect fail so allSuccesses will exclude it
+                throw new Error(
+                  `Failed to sync thread ${threadId}: ${error instanceof Error ? error.message : String(error)}`,
+                );
+              },
+            }),
+          ),
+          { concurrency: 1 }, // Limit concurrency to avoid rate limits
+        );
+
+        const syncedCount = syncResults.length;
+        const failedCount = threadWorkflowParams.length - syncedCount;
+
+        if (failedCount > 0) {
+          yield* Console.log(
+            `[ZERO_WORKFLOW] Warning: ${failedCount}/${threadWorkflowParams.length} thread syncs failed. Successfully synced: ${syncedCount}`,
+          );
+          // Continue with processing - sync failures shouldn't stop the entire workflow
+          // The thread processing will continue with whatever data is available
+        } else {
+          yield* Console.log(`[ZERO_WORKFLOW] Successfully synced all ${syncedCount} threads`);
+        }
+
+        yield* Console.log('[ZERO_WORKFLOW] Synced threads:', syncResults);
+
+        // Run thread workflow for each successfully synced thread
+        if (syncedCount > 0) {
+          yield* Effect.tryPromise({
+            try: () => agent.reloadFolder('inbox'),
+            catch: (error) => ({ _tag: 'GmailApiError' as const, error }),
+          }).pipe(
+            Effect.tap(() => Console.log('[ZERO_WORKFLOW] Successfully reloaded inbox folder')),
+            Effect.orElse(() =>
+              Effect.gen(function* () {
+                yield* Console.log('[ZERO_WORKFLOW] Failed to reload inbox folder');
+                return undefined;
+              }),
+            ),
+          );
+
+          yield* Console.log(
+            `[ZERO_WORKFLOW] Running thread workflows for ${syncedCount} synced threads`,
+          );
+
+          const threadWorkflowResults = yield* Effect.allSuccesses(
+            syncResults.map(({ threadId }) =>
+              runWorkflow(EWorkflowType.THREAD, {
+                connectionId,
+                threadId,
+                providerId: foundConnection.providerId,
+              }).pipe(
+                Effect.tap(() =>
+                  Console.log(`[ZERO_WORKFLOW] Successfully ran thread workflow for ${threadId}`),
+                ),
+                Effect.tapError((error) =>
+                  Console.log(
+                    `[ZERO_WORKFLOW] Failed to run thread workflow for ${threadId}:`,
+                    error,
+                  ),
+                ),
+              ),
+            ),
+            { concurrency: 1 }, // Limit concurrency to avoid overwhelming the system
+          );
+
+          const threadWorkflowSuccessCount = threadWorkflowResults.length;
+          const threadWorkflowFailedCount = syncedCount - threadWorkflowSuccessCount;
+
+          if (threadWorkflowFailedCount > 0) {
+            yield* Console.log(
+              `[ZERO_WORKFLOW] Warning: ${threadWorkflowFailedCount}/${syncedCount} thread workflows failed. Successfully processed: ${threadWorkflowSuccessCount}`,
+            );
+          } else {
+            yield* Console.log(
+              `[ZERO_WORKFLOW] Successfully ran all ${threadWorkflowSuccessCount} thread workflows`,
+            );
+          }
+        }
+      }
+
+      // Process label changes for threads
+      if (threadLabelChanges.size > 0) {
+        yield* Console.log(
+          `[ZERO_WORKFLOW] Processing label changes for ${threadLabelChanges.size} threads`,
+        );
+
+        // Process each thread's label changes
+        for (const [threadId, changes] of threadLabelChanges) {
+          const addLabels = Array.from(changes.addLabels);
+          const removeLabels = Array.from(changes.removeLabels);
+
+          // Only call if there are actual changes to make
+          if (addLabels.length > 0 || removeLabels.length > 0) {
+            yield* Console.log(
+              `[ZERO_WORKFLOW] Modifying labels for thread ${threadId}: +${addLabels.length} -${removeLabels.length}`,
+            );
+            yield* Effect.tryPromise({
+              try: () => agent.modifyThreadLabelsInDB(threadId, addLabels, removeLabels),
+              catch: (error) => ({ _tag: 'LabelModificationFailed' as const, error, threadId }),
+            }).pipe(
+              Effect.orElse(() =>
+                Effect.gen(function* () {
+                  yield* Console.log(
+                    `[ZERO_WORKFLOW] Failed to modify labels for thread ${threadId}`,
+                  );
+                  return undefined;
+                }),
+              ),
+            );
+          }
+        }
+
+        yield* Console.log('[ZERO_WORKFLOW] Completed label modifications');
+      } else {
+        yield* Console.log('[ZERO_WORKFLOW] No threads with label changes to process');
+      }
+
+      // Clean up processing flag
+      yield* Effect.tryPromise({
+        try: () => {
+          console.log(
+            '[ZERO_WORKFLOW] Clearing processing flag for history:',
+            historyProcessingKey,
+          );
+          return env.gmail_processing_threads.delete(historyProcessingKey);
+        },
+        catch: (error) => ({ _tag: 'WorkflowCreationFailed' as const, error }),
+      }).pipe(Effect.orElse(() => Effect.succeed(null)));
 
       yield* Console.log('[ZERO_WORKFLOW] Processing complete');
       return 'Zero workflow completed successfully';
@@ -378,6 +489,7 @@ export const runZeroWorkflow = (
         Effect.flatMap(() => Effect.fail(error)),
       );
     }),
+    Effect.provide(loggerLayer),
   );
 
 // Define the ThreadWorkflow parameters type
@@ -397,6 +509,11 @@ type ThreadWorkflowError =
   | { _tag: 'GmailApiError'; error: unknown }
   | { _tag: 'VectorizationError'; error: unknown };
 
+/**
+ * Runs the main workflow for processing a thread. The workflow is responsible for processing incoming messages from a Pub/Sub subscription and passing them to the appropriate pipeline.
+ * @param params
+ * @returns
+ */
 export const runThreadWorkflow = (
   params: ThreadWorkflowParams,
 ): Effect.Effect<string, ThreadWorkflowError> =>
@@ -415,7 +532,6 @@ export const runThreadWorkflow = (
             .select()
             .from(connection)
             .where(eq(connection.id, connectionId.toString()));
-          await conn.end();
           if (!foundConnection) {
             throw new Error(`Connection not found ${connectionId}`);
           }
@@ -425,6 +541,11 @@ export const runThreadWorkflow = (
           console.log('[THREAD_WORKFLOW] Found connection:', foundConnection.id);
           return foundConnection;
         },
+        catch: (error) => ({ _tag: 'DatabaseError' as const, error }),
+      });
+
+      yield* Effect.tryPromise({
+        try: async () => conn.end(),
         catch: (error) => ({ _tag: 'DatabaseError' as const, error }),
       });
 
@@ -447,6 +568,92 @@ export const runThreadWorkflow = (
         yield* Console.log('[THREAD_WORKFLOW] Thread has no messages, skipping processing');
         return 'Thread has no messages';
       }
+
+      const autoDraftId = yield* Effect.tryPromise({
+        try: async () => {
+          if (!shouldGenerateDraft(thread, foundConnection)) {
+            console.log('[THREAD_WORKFLOW] Skipping draft generation for thread:', threadId);
+            return null;
+          }
+
+          const latestMessage = thread.messages[thread.messages.length - 1];
+          const emailIntent = analyzeEmailIntent(latestMessage);
+
+          console.log('[THREAD_WORKFLOW] Analyzed email intent:', {
+            threadId,
+            isQuestion: emailIntent.isQuestion,
+            isRequest: emailIntent.isRequest,
+            isMeeting: emailIntent.isMeeting,
+            isUrgent: emailIntent.isUrgent,
+          });
+
+          if (
+            !emailIntent.isQuestion &&
+            !emailIntent.isRequest &&
+            !emailIntent.isMeeting &&
+            !emailIntent.isUrgent
+          ) {
+            console.log(
+              '[THREAD_WORKFLOW] Email does not require a response, skipping draft generation',
+            );
+            return null;
+          }
+
+          console.log('[THREAD_WORKFLOW] Generating automatic draft for thread:', threadId);
+          const draftContent = await generateAutomaticDraft(
+            connectionId.toString(),
+            thread,
+            foundConnection,
+          );
+
+          if (draftContent) {
+            const latestMessage = thread.messages[thread.messages.length - 1];
+
+            const replyTo = latestMessage.sender?.email || '';
+            const cc =
+              latestMessage.cc
+                ?.map((r) => r.email)
+                .filter((email) => email && email !== foundConnection.email) || [];
+
+            const originalSubject = latestMessage.subject || '';
+            const replySubject = originalSubject.startsWith('Re: ')
+              ? originalSubject
+              : `Re: ${originalSubject}`;
+
+            const draftData = {
+              to: replyTo,
+              cc: cc.join(', '),
+              bcc: '',
+              subject: replySubject,
+              message: draftContent,
+              attachments: [],
+              id: null,
+              threadId: threadId.toString(),
+              fromEmail: foundConnection.email,
+            };
+
+            try {
+              const createdDraft = await agent.createDraft(draftData);
+              console.log('[THREAD_WORKFLOW] Created automatic draft:', {
+                threadId,
+                draftId: createdDraft?.id,
+              });
+              return createdDraft?.id || null;
+            } catch (error) {
+              console.log('[THREAD_WORKFLOW] Failed to create automatic draft:', {
+                threadId,
+                error: error instanceof Error ? error.message : String(error),
+              });
+              return null;
+            }
+          }
+
+          return null;
+        },
+        catch: (error) => ({ _tag: 'DatabaseError' as const, error }),
+      });
+
+      yield* Console.log('[THREAD_WORKFLOW] ' + autoDraftId);
 
       yield* Console.log('[THREAD_WORKFLOW] Processing thread messages and vectorization');
 
@@ -518,12 +725,9 @@ export const runThreadWorkflow = (
                       { role: 'system', content: SummarizeMessagePrompt },
                       { role: 'user', content: prompt },
                     ];
-                    const response: any = await env.AI.run(
-                      '@cf/meta/llama-4-scout-17b-16e-instruct',
-                      {
-                        messages,
-                      },
-                    );
+                    const response = await env.AI.run('@cf/meta/llama-4-scout-17b-16e-instruct', {
+                      messages,
+                    });
                     console.log(
                       `[THREAD_WORKFLOW] Summary generated for message ${message.id}:`,
                       response,
@@ -601,7 +805,7 @@ export const runThreadWorkflow = (
             return null;
           }
           console.log('[THREAD_WORKFLOW] Found existing thread summary');
-          return threadSummary[0].metadata as any;
+          return threadSummary[0].metadata as { summary: string; lastMsg: string };
         },
         catch: (error) => ({ _tag: 'VectorizationError' as const, error }),
       });
@@ -646,45 +850,36 @@ export const runThreadWorkflow = (
 
         const userLabels = yield* Effect.tryPromise({
           try: async () => {
-            console.log('[THREAD_WORKFLOW] Getting user labels for connection:', connectionId);
+            console.log('[THREAD_WORKFLOW] Getting user topics for connection:', connectionId);
             let userLabels: { name: string; usecase: string }[] = [];
-            const connectionLabels = await env.connection_labels.get(connectionId.toString());
-            if (connectionLabels) {
-              try {
-                console.log('[THREAD_WORKFLOW] Parsing existing connection labels');
-                const parsed = JSON.parse(connectionLabels);
-                if (
-                  Array.isArray(parsed) &&
-                  parsed.every((label) => typeof label === 'object' && label.name && label.usecase)
-                ) {
-                  userLabels = parsed;
-                } else {
-                  throw new Error('Invalid label format');
-                }
-              } catch {
-                console.log('[THREAD_WORKFLOW] Failed to parse labels, using defaults');
-                await env.connection_labels.put(
-                  connectionId.toString(),
-                  JSON.stringify(defaultLabels),
-                );
+            try {
+              const userTopics = await agent.getUserTopics();
+              if (userTopics.length > 0) {
+                userLabels = userTopics.map((topic) => ({
+                  name: topic.topic,
+                  usecase: topic.usecase,
+                }));
+                console.log('[THREAD_WORKFLOW] Using user topics as labels:', userLabels);
+              } else {
+                console.log('[THREAD_WORKFLOW] No user topics found, using defaults');
                 userLabels = defaultLabels;
               }
-            } else {
-              console.log('[THREAD_WORKFLOW] No labels found, using defaults');
-              await env.connection_labels.put(
-                connectionId.toString(),
-                JSON.stringify(defaultLabels),
-              );
+            } catch (error) {
+              console.log('[THREAD_WORKFLOW] Failed to get user topics, using defaults:', error);
               userLabels = defaultLabels;
             }
-            return userLabels.length ? userLabels : defaultLabels;
+            return userLabels;
           },
           catch: (error) => ({ _tag: 'DatabaseError' as const, error }),
         });
 
         const generatedLabels = yield* Effect.tryPromise({
           try: async () => {
-            console.log('[THREAD_WORKFLOW] Generating labels for thread:', threadId);
+            console.log('[THREAD_WORKFLOW] Generating labels for thread:', {
+              userLabels,
+              threadId,
+              threadLabels: thread.labels,
+            });
             const labelsResponse: any = await env.AI.run(
               '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
               {
@@ -738,8 +933,18 @@ export const runThreadWorkflow = (
                     add: labelsToAdd,
                     remove: labelsToRemove,
                   });
-                  await agent.modifyLabels([threadId.toString()], labelsToAdd, labelsToRemove);
-                  await agent.syncThread(threadId.toString());
+                  await agent.modifyThreadLabelsInDB(
+                    threadId.toString(),
+                    labelsToAdd,
+                    labelsToRemove,
+                  );
+                  // await agent.modifyLabels(
+                  //   [threadId.toString()],
+                  //   labelsToAdd,
+                  //   labelsToRemove,
+                  //   true,
+                  // );
+                  // await agent.syncThread({ threadId: threadId.toString() });
                   console.log('[THREAD_WORKFLOW] Successfully modified thread labels');
                 } else {
                   console.log('[THREAD_WORKFLOW] No label changes needed - labels already match');
@@ -805,6 +1010,11 @@ export const runThreadWorkflow = (
         catch: (error) => ({ _tag: 'DatabaseError' as const, error }),
       }).pipe(Effect.orElse(() => Effect.succeed(null)));
 
+      yield* Effect.tryPromise({
+        try: async () => conn.end(),
+        catch: (error) => ({ _tag: 'DatabaseError' as const, error }),
+      });
+
       yield* Console.log('[THREAD_WORKFLOW] Thread processing complete');
       return 'Thread workflow completed successfully';
     } else {
@@ -835,6 +1045,7 @@ export const runThreadWorkflow = (
         Effect.flatMap(() => Effect.fail(error)),
       );
     }),
+    Effect.provide(loggerLayer),
   );
 
 // // Helper functions for vectorization and AI processing

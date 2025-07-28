@@ -8,8 +8,8 @@ import { useTRPC } from '@/providers/query-provider';
 import { useMail } from '@/components/mail/use-mail';
 import { moveThreadsTo } from '@/lib/thread-actions';
 import { m } from '@/paraglide/messages';
-import { useCallback } from 'react';
 import { useQueryState } from 'nuqs';
+import { useCallback } from 'react';
 import posthog from 'posthog-js';
 import { useAtom } from 'jotai';
 import { toast } from 'sonner';
@@ -20,6 +20,8 @@ enum ActionType {
   READ = 'READ',
   LABEL = 'LABEL',
   IMPORTANT = 'IMPORTANT',
+  SNOOZE = 'SNOOZE',
+  UNSNOOZE = 'UNSNOOZE',
 }
 
 const actionEventNames: Record<ActionType, (params: any) => string> = {
@@ -29,6 +31,8 @@ const actionEventNames: Record<ActionType, (params: any) => string> = {
   [ActionType.IMPORTANT]: (params) =>
     params.important ? 'email_marked_important' : 'email_unmarked_important',
   [ActionType.LABEL]: (params) => (params.add ? 'email_label_added' : 'email_label_removed'),
+  [ActionType.SNOOZE]: () => 'email_snoozed',
+  [ActionType.UNSNOOZE]: () => 'email_unsnoozed',
 };
 
 export function useOptimisticActions() {
@@ -47,30 +51,19 @@ export function useOptimisticActions() {
   const { mutateAsync: toggleImportant } = useMutation(trpc.mail.toggleImportant.mutationOptions());
 
   const { mutateAsync: bulkDeleteThread } = useMutation(trpc.mail.bulkDelete.mutationOptions());
+  const { mutateAsync: snoozeThreads } = useMutation(trpc.mail.snoozeThreads.mutationOptions());
+  const { mutateAsync: unsnoozeThreads } = useMutation(trpc.mail.unsnoozeThreads.mutationOptions());
   const { mutateAsync: modifyLabels } = useMutation(trpc.mail.modifyLabels.mutationOptions());
 
   const generatePendingActionId = () =>
     `pending_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
-  const refreshData = useCallback(
-    async (threadIds: string[], folders?: string[]) => {
-      return await Promise.all([
-        queryClient.refetchQueries({ queryKey: trpc.mail.count.queryKey() }),
-        ...(folders?.map((folder) =>
-          queryClient.refetchQueries({
-            queryKey: trpc.mail.listThreads.infiniteQueryKey({ folder }),
-          }),
-        ) ?? []),
-        ...threadIds.map((id) =>
-          queryClient.refetchQueries({
-            queryKey: trpc.mail.get.queryKey({ id }),
-          }),
-        ),
-        queryClient.refetchQueries({ queryKey: trpc.labels.list.queryKey() }),
-      ]);
-    },
-    [queryClient, trpc.mail.get, trpc.labels.list],
-  );
+  const refreshData = useCallback(async () => {
+    return await Promise.all([
+      queryClient.refetchQueries({ queryKey: trpc.mail.count.queryKey() }),
+      queryClient.refetchQueries({ queryKey: trpc.labels.list.queryKey() }),
+    ]);
+  }, [queryClient]);
 
   function createPendingAction({
     type,
@@ -80,7 +73,6 @@ export function useOptimisticActions() {
     execute,
     undo,
     toastMessage,
-    folders,
   }: {
     type: keyof typeof ActionType;
     threadIds: string[];
@@ -141,7 +133,7 @@ export function useOptimisticActions() {
         optimisticActionsManager.pendingActions.delete(pendingActionId);
         optimisticActionsManager.pendingActionsByType.get(type)?.delete(pendingActionId);
         if (typeActions?.size === 1) {
-          await refreshData(threadIds, folders);
+          await refreshData();
           removeOptimisticAction(optimisticId);
         }
       } catch (error) {
@@ -149,11 +141,9 @@ export function useOptimisticActions() {
         removeOptimisticAction(optimisticId);
         optimisticActionsManager.pendingActions.delete(pendingActionId);
         optimisticActionsManager.pendingActionsByType.get(type)?.delete(pendingActionId);
-        showToast.error('Action failed');
+        toast.error('Action failed');
       }
     }
-
-    const showToast = toast;
 
     if (toastMessage.trim().length) {
       toast(bulkActionMessage, {
@@ -443,6 +433,59 @@ export function useOptimisticActions() {
     });
   }
 
+  function optimisticSnooze(threadIds: string[], currentFolder: string, wakeAt: Date) {
+    if (!threadIds.length) return;
+
+    const optimisticId = addOptimisticAction({
+      type: 'SNOOZE',
+      threadIds,
+      wakeAt: wakeAt.toISOString(),
+    });
+
+    createPendingAction({
+      type: 'SNOOZE',
+      threadIds,
+      params: { currentFolder, wakeAt: wakeAt.toISOString() } as any,
+      optimisticId,
+      execute: async () => {
+        await snoozeThreads({ ids: threadIds, wakeAt: wakeAt.toISOString() });
+
+        if (mail.bulkSelected.length > 0) {
+          setMail({ ...mail, bulkSelected: [] });
+        }
+      },
+      undo: () => {
+        removeOptimisticAction(optimisticId);
+      },
+      toastMessage: `Snoozed until ${wakeAt.toLocaleString()}`,
+      folders: [currentFolder, 'snoozed'],
+    });
+  }
+
+  function optimisticUnsnooze(threadIds: string[], currentFolder: string) {
+    if (!threadIds.length) return;
+
+    const optimisticId = addOptimisticAction({
+      type: 'UNSNOOZE',
+      threadIds,
+    });
+
+    createPendingAction({
+      type: 'UNSNOOZE',
+      threadIds,
+      params: { currentFolder } as any,
+      optimisticId,
+      execute: async () => {
+        await unsnoozeThreads({ ids: threadIds });
+      },
+      undo: () => {
+        removeOptimisticAction(optimisticId);
+      },
+      toastMessage: 'Moved to Inbox',
+      folders: [currentFolder, 'inbox'],
+    });
+  }
+
   function undoLastAction() {
     if (!optimisticActionsManager.lastActionId) return;
 
@@ -473,6 +516,8 @@ export function useOptimisticActions() {
     optimisticDeleteThreads,
     optimisticToggleImportant,
     optimisticToggleLabel,
+    optimisticSnooze,
+    optimisticUnsnooze,
     undoLastAction,
   };
 }

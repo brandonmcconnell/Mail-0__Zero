@@ -5,8 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/providers/query-provider';
 import { usePartySocket } from 'partysocket/react';
 
-
- // 10 seconds is appropriate for real-time notifications
+// 10 seconds is appropriate for real-time notifications
 
 export enum IncomingMessageType {
   UseChatRequest = 'cf_agent_use_chat_request',
@@ -15,6 +14,7 @@ export enum IncomingMessageType {
   ChatRequestCancel = 'cf_agent_chat_request_cancel',
   Mail_List = 'zero_mail_list_threads',
   Mail_Get = 'zero_mail_get_thread',
+  User_Topics = 'zero_user_topics',
 }
 
 export enum OutgoingMessageType {
@@ -32,9 +32,6 @@ export const NotificationProvider = () => {
   const [searchValue] = useSearchValue();
   const { labels } = useSearchLabels();
 
-  
-  
-
   usePartySocket({
     party: 'zero-agent',
     room: activeConnection?.id ? String(activeConnection.id) : 'general',
@@ -49,7 +46,6 @@ export const NotificationProvider = () => {
           queryClient.invalidateQueries({
             queryKey: trpc.mail.get.queryKey({ id: threadId }),
           });
-          console.log('invalidated mail get', threadId);
         } else if (type === IncomingMessageType.Mail_List) {
           const { folder } = JSON.parse(message.data);
           queryClient.invalidateQueries({
@@ -58,6 +54,10 @@ export const NotificationProvider = () => {
               labelIds: labels,
               q: searchValue.value,
             }),
+          });
+        } else if (type === IncomingMessageType.User_Topics) {
+          queryClient.invalidateQueries({
+            queryKey: trpc.labels.list.queryKey(),
           });
         }
       } catch (error) {

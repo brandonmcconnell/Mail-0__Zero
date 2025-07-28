@@ -94,7 +94,7 @@
         "commandPalette": "명령 팔레트"
       },
       "quickResults": "빠른 결과",
-      "searchPlaceholder": "검색 및 필터",
+      "searchPlaceholder": "검색...",
       "noSearchResults": "검색 결과 없음",
       "actions": "동작",
       "addFilters": "필터 추가",
@@ -253,8 +253,8 @@
           "selectors": ["countPlural"],
           "match": {
             "countPlural=0": "메모 추가",
-            "countPlural=one": "노트 {count}개",
-            "countPlural=other": "노트 {count}개"
+            "countPlural=one": "노트 #개",
+            "countPlural=other": "노트 #개"
           }
         }
       ],
@@ -316,8 +316,8 @@
           "selectors": ["countPlural"],
           "match": {
             "countPlural=0": "답장",
-            "countPlural=one": "답장 {count}개",
-            "countPlural=other": "답장 {count}개"
+            "countPlural=one": "답장 #개",
+            "countPlural=other": "답장 #개"
           }
         }
       ],
@@ -405,7 +405,8 @@
       "livesupport": "실시간 지원",
       "feedback": "피드백",
       "settings": "설정",
-      "voice": "음성 비서"
+      "voice": "음성 비서",
+      "snoozed": "스누즈됨"
     },
     "settings": {
       "general": "일반",
