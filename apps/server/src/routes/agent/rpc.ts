@@ -133,6 +133,10 @@ export class DriverRpcDO extends RpcTarget {
     return await this.mainDo.listDrafts(params);
   }
 
+  async deleteDraft(draftId: string) {
+    return await this.mainDo.deleteDraft(draftId);
+  }
+
   async count() {
     return await this.mainDo.count();
   }

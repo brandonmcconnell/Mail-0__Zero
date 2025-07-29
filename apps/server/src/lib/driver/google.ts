@@ -763,6 +763,19 @@ export class GoogleMailManager implements MailManager {
       { data },
     );
   }
+  public deleteDraft(draftId: string) {
+    return this.withErrorHandler(
+      'deleteDraft',
+      async () => {
+        await this.gmail.users.drafts.delete({
+          userId: 'me',
+          id: draftId,
+        });
+        return { success: true };
+      },
+      { draftId },
+    );
+  }
   public async getUserLabels() {
     const res = await this.gmail.users.labels.list({
       userId: 'me',

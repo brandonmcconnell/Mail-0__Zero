@@ -51,9 +51,7 @@ export type ManagerConfig = {
 
 export interface MailManager {
   config: ManagerConfig;
-  getMessageAttachments(
-    id: string,
-  ): Promise<
+  getMessageAttachments(id: string): Promise<
     {
       filename: string;
       mimeType: string;
@@ -69,6 +67,7 @@ export interface MailManager {
   createDraft(
     data: CreateDraftData,
   ): Promise<{ id?: string | null; success?: boolean; error?: string }>;
+  deleteDraft(draftId: string): Promise<{ success: boolean }>;
   getDraft(id: string): Promise<ParsedDraft>;
   listDrafts(params: { q?: string; maxResults?: number; pageToken?: string }): Promise<{
     threads: { id: string; historyId: string | null; $raw: unknown }[];

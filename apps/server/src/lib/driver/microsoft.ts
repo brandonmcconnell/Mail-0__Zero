@@ -736,6 +736,16 @@ export class OutlookMailManager implements MailManager {
       { data },
     );
   }
+  public deleteDraft(draftId: string) {
+    return this.withErrorHandler(
+      'deleteDraft',
+      async () => {
+        await this.graphClient.api(`/me/mailfolders/drafts/messages/${draftId}`).delete();
+        return { success: true };
+      },
+      { draftId },
+    );
+  }
   public async getUserLabels() {
     try {
       // Get root mail folders

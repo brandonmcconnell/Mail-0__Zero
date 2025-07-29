@@ -758,6 +758,13 @@ export class ZeroDriver extends AIChatAgent<typeof env> {
     return await this.driver.listDrafts(params);
   }
 
+  async deleteDraft(draftId: string) {
+    if (!this.driver) {
+      throw new Error('No driver available');
+    }
+    return await this.driver.deleteDraft(draftId);
+  }
+
   // Additional mail operations
   async count() {
     if (!this.driver) {

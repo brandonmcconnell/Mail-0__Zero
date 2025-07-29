@@ -27,6 +27,7 @@ import { createLocalJWKSet, jwtVerify } from 'jose';
 import { getZeroAgent } from './lib/server-utils';
 import { enableBrainFunction } from './lib/brain';
 import { trpcServer } from '@hono/trpc-server';
+import { draftsRouter } from './routes/drafts';
 import { agentsMiddleware } from 'hono-agents';
 import { ZeroMCP } from './routes/agent/mcp';
 import { publicRouter } from './routes/auth';
@@ -536,6 +537,7 @@ export default class extends WorkerEntrypoint<typeof env> {
     .route('/ai', aiRouter)
     .route('/autumn', autumnApi)
     .route('/public', publicRouter)
+    .route('/drafts', draftsRouter)
     .on(['GET', 'POST', 'OPTIONS'], '/auth/*', (c) => {
       return c.var.auth.handler(c.req.raw);
     })
