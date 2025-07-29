@@ -20,7 +20,6 @@ import {
   generateText,
   streamText,
   convertToCoreMessages,
-  type UIMessage,
   type StreamTextOnFinishCallback,
 } from 'ai';
 import {
