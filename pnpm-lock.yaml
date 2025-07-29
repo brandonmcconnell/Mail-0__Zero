@@ -562,8 +562,8 @@ importers:
         specifier: ^1.34.9
         version: 1.35.0
       agents:
-        specifier: 0.0.106
-        version: 0.0.106(@cloudflare/workers-types@4.20250628.0)(react@19.1.0)
+        specifier: 0.0.109
+        version: 0.0.109(@cloudflare/workers-types@4.20250628.0)(react@19.1.0)
       ai:
         specifier: ^4.3.13
         version: 4.3.16(react@19.1.0)(zod@3.25.67)
@@ -610,8 +610,8 @@ importers:
         specifier: ^4.7.8
         version: 4.8.3
       hono-agents:
-        specifier: 0.0.83
-        version: 0.0.83(agents@0.0.106(@cloudflare/workers-types@4.20250628.0)(react@19.1.0))(hono@4.8.3)
+        specifier: 0.0.99
+        version: 0.0.99(agents@0.0.109(@cloudflare/workers-types@4.20250628.0)(react@19.1.0))(hono@4.8.3)
       hono-party:
         specifier: ^0.0.12
         version: 0.0.12(@cloudflare/workers-types@4.20250628.0)(hono@4.8.3)(partyserver@0.0.71(@cloudflare/workers-types@4.20250628.0))
@@ -4445,8 +4445,8 @@ packages:
     resolution: {integrity: sha512-kja8j7PjmncONqaTsB8fQ+wE2mSU2DJ9D4XKoJ5PFWIdRMa6SLSN1ff4mOr4jCbfRSsxR4keIiySJU0N9T5hIQ==}
     engines: {node: '>= 8.0.0'}
 
-  agents@0.0.106:
-    resolution: {integrity: sha512-HthmK2Dm++heO/6wrm8IlL4B7sHSlbW+EVB4BS3hjOskm3Exjpt4M+SjPwEOfRtokLlGKf8dA8wRAXgxPk+RJw==}
+  agents@0.0.109:
+    resolution: {integrity: sha512-QExGnLWyQZ0JzYOv3QAKM2LM8jmnGi+WhCASQhsCtARoGk1xfo0ho0aSjXUmPbcL0OnTsqZm3W/Lu6fygCTQgA==}
     peerDependencies:
       react: '*'
 
@@ -5992,10 +5992,10 @@ packages:
   hoist-non-react-statics@3.3.2:
     resolution: {integrity: sha512-/gGivxi8JPKWNm/W0jSmzcMPpfpPLc3dY/6GxhX2hQ9iGj3aDfklV4ET7NjKpSinLpJ5vafa9iiGIEZg10SfBw==}
 
-  hono-agents@0.0.83:
-    resolution: {integrity: sha512-UMOXV8MDDxExoNfUplEWAAGSsziko+6dDWKqHeysn7S09jKyjmpEzeV2oh4Dk3WrH64EBjSg2o+q8RQs38j8Gg==}
+  hono-agents@0.0.99:
+    resolution: {integrity: sha512-VhkKwI2xYTnmKbP5rFRBiSj91oTHPD+RnHZ6du7FchOd/pnIjt0ND5Omkv+4DRpyPV8rtEn7fIDq6FDuN153Vg==}
     peerDependencies:
-      agents: ^0.0.93
+      agents: ^0.0.109
       hono: ^4.6.17
 
   hono-party@0.0.12:
@@ -12744,7 +12744,7 @@ snapshots:
     dependencies:
       humanize-ms: 1.2.1
 
-  agents@0.0.106(@cloudflare/workers-types@4.20250628.0)(react@19.1.0):
+  agents@0.0.109(@cloudflare/workers-types@4.20250628.0)(react@19.1.0):
     dependencies:
       '@modelcontextprotocol/sdk': 1.15.1
       ai: 4.3.16(react@19.1.0)(zod@3.25.67)
@@ -14580,9 +14580,9 @@ snapshots:
     dependencies:
       react-is: 16.13.1
 
-  hono-agents@0.0.83(agents@0.0.106(@cloudflare/workers-types@4.20250628.0)(react@19.1.0))(hono@4.8.3):
+  hono-agents@0.0.99(agents@0.0.109(@cloudflare/workers-types@4.20250628.0)(react@19.1.0))(hono@4.8.3):
     dependencies:
-      agents: 0.0.106(@cloudflare/workers-types@4.20250628.0)(react@19.1.0)
+      agents: 0.0.109(@cloudflare/workers-types@4.20250628.0)(react@19.1.0)
       hono: 4.8.3
 
   hono-party@0.0.12(@cloudflare/workers-types@4.20250628.0)(hono@4.8.3)(partyserver@0.0.71(@cloudflare/workers-types@4.20250628.0)):

@@ -19,6 +19,8 @@ import {
   createDataStreamResponse,
   generateText,
   streamText,
+  convertToCoreMessages,
+  type UIMessage,
   type StreamTextOnFinishCallback,
 } from 'ai';
 import {
@@ -1802,7 +1804,7 @@ export class ZeroAgent extends AIChatAgent<typeof env> {
         const result = streamText({
           model,
           maxSteps: 10,
-          messages: processedMessages,
+          messages: convertToCoreMessages(processedMessages),
           tools,
           onFinish,
           onError: (error) => {
