@@ -106,3 +106,14 @@ This is a pnpm workspace monorepo with the following structure:
 - Uses Cloudflare Workers for backend deployment
 - iOS app is part of the monorepo
 - CLI tool `nizzy` helps manage environment and sync operations
+
+## Troubleshooting
+
+### Missing Dependencies Error
+If you encounter missing dependency errors like `Cannot find package 'vite-plugin-oxlint'` when running `pnpm dev`, run:
+
+```bash
+pnpm install
+```
+
+This will install all missing dependencies and resolve module not found errors. The error typically occurs when the development environment hasn't been properly set up or dependencies are out of sync.
