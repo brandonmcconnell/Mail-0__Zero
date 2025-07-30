@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useMemo } from 'react';
-import type { MutableRefObject } from 'react';
+import type { RefObject } from 'react';
 import { useController, type Control } from 'react-hook-form';
 import { useTRPC } from '@/providers/query-provider';
 import { useQuery } from '@tanstack/react-query';
@@ -57,10 +57,12 @@ export function RecipientAutosuggest({
   const combinedRef = useCallback(
     (element: HTMLInputElement | null) => {
       inputDomRef.current = element;
-      if (typeof inputRefRHF === 'function') {
-        inputRefRHF(element);
-      } else if (inputRefRHF) {
-        (inputRefRHF as unknown as MutableRefObject<HTMLInputElement | null>).current = element;
+      if (inputRefRHF) {
+        if (typeof inputRefRHF === 'function') {
+          inputRefRHF(element);
+        } else if ('current' in inputRefRHF) {
+          (inputRefRHF as RefObject<HTMLInputElement | null>).current = element;
+        }
       }
     },
     [inputRefRHF],
