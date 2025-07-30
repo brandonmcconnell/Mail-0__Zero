@@ -24,5 +24,3 @@ onlyBuiltDependencies:
   - sharp
   - unrs-resolver
   - workerd
-patchedDependencies:
-  novel: patches/novel.patch
