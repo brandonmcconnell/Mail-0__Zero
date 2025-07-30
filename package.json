@@ -50,5 +50,10 @@
     "@dub/analytics": "0.0.27",
     "@dub/better-auth": "0.0.3",
     "dub": "0.63.7"
+  },
+  "pnpm": {
+    "patchedDependencies": {
+      "novel": "patches/novel.patch"
+    }
   }
 }
