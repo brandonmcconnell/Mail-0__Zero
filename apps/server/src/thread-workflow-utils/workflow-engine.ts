@@ -67,6 +67,9 @@ export class WorkflowEngine {
         console.log(`[WORKFLOW_ENGINE] Executing step: ${step.name}`);
         const result = await step.action({ ...context, results });
         results.set(step.id, result);
+        if (context.results) {
+          context.results.set(step.id, result);
+        }
         console.log(`[WORKFLOW_ENGINE] Completed step: ${step.name}`, result);
       } catch (error) {
         const errorObj = error instanceof Error ? error : new Error(String(error));
