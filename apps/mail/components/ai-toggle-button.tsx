@@ -14,7 +14,7 @@ const AIToggleButton = () => {
             <Button
               variant="outline"
               size="icon"
-              className="dark:bg-sidebar border h-12 w-12 rounded-lg"
+              className="dark:bg-sidebar h-10 w-10 rounded-xl border"
               onClick={(e) => {
                 if (!isSidebarOpen) {
                   e.stopPropagation();
@@ -26,15 +26,15 @@ const AIToggleButton = () => {
                 <img
                   src="/black-icon.svg"
                   alt="AI Assistant"
-                  width={22}
-                  height={22}
+                  width={20}
+                  height={20}
                   className="block dark:hidden"
                 />
                 <img
                   src="/white-icon.svg"
                   alt="AI Assistant"
-                  width={22}
-                  height={22}
+                  width={20}
+                  height={20}
                   className="hidden dark:block"
                 />
               </div>

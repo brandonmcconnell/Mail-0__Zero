@@ -56,6 +56,7 @@ import { useSession } from '@/lib/auth-client';
 
 import { cn } from '@/lib/utils';
 
+import { ComposeTabs } from '../create/compose-tabs';
 import { m } from '@/paraglide/messages';
 import { useQueryState } from 'nuqs';
 import { useAtom } from 'jotai';
@@ -465,14 +466,14 @@ export function MailLayout() {
         <ResizablePanelGroup
           direction="horizontal"
           autoSaveId="mail-panel-layout"
-          className="rounded-inherit overflow-hidden"
+          className="rounded-inherit overflow-visible"
         >
           <ResizablePanel
             defaultSize={35}
             minSize={35}
             maxSize={35}
             className={cn(
-              `bg-panelLight dark:bg-panelDark mb-1 w-fit shadow-sm md:mr-[3px] md:rounded-2xl lg:flex lg:h-[calc(100dvh-8px)] lg:shadow-sm`,
+              `bg-panelLight dark:bg-panelDark mb-1 w-fit overflow-visible shadow-sm md:mr-[3px] md:rounded-2xl lg:flex lg:h-[calc(100dvh-8px)] lg:shadow-sm`,
               isDesktop && threadId && 'hidden lg:block',
             )}
             onMouseEnter={handleMailListMouseEnter}
@@ -485,7 +486,7 @@ export function MailLayout() {
                 )}
               >
                 <div className="w-full">
-                  <div className="grid grid-cols-12 gap-2 mt-1">
+                  <div className="mt-1 grid grid-cols-12 gap-2">
                     <SidebarToggle className="col-span-1 h-fit px-2" />
                     {mail.bulkSelected.length === 0 ? (
                       <div className="col-span-10 flex gap-2">
@@ -597,14 +598,14 @@ export function MailLayout() {
           {isDesktop && (
             <ResizablePanel
               className={cn(
-                'bg-panelLight dark:bg-panelDark mb-1 mr-0.5 w-fit rounded-2xl shadow-sm lg:h-[calc(100dvh-8px)]',
+                'bg-panelLight dark:bg-panelDark mb-1 mr-0.5 w-fit !overflow-visible rounded-2xl shadow-sm lg:h-[calc(100dvh-8px)]',
                 // Only show on md screens and larger when there is a threadId
                 !threadId && 'hidden lg:block',
               )}
               defaultSize={30}
               minSize={30}
             >
-              <div className="relative flex-1">
+              <div className="relative flex-1 overflow-visible">
                 <ThreadDisplay />
               </div>
             </ResizablePanel>
@@ -621,6 +622,7 @@ export function MailLayout() {
             </div>
           )}
 
+          <ComposeTabs />
           {activeConnection?.id ? <AISidebar /> : null}
           {activeConnection?.id ? <AIToggleButton /> : null}
         </ResizablePanelGroup>

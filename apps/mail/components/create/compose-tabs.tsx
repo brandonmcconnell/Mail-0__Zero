@@ -1,6 +1,5 @@
 import {
   activeComposeTabIdAtom,
-  addComposeTabAtom,
   composeTabsAtom,
   fullscreenTabIdAtom,
   removeComposeTabAtom,
@@ -17,10 +16,12 @@ import { useMutation } from '@tanstack/react-query';
 import { useSettings } from '@/hooks/use-settings';
 import { EmailComposer } from './email-composer';
 import { Button } from '@/components/ui/button';
+import { useAISidebar } from '../ui/ai-sidebar';
 import { useSession } from '@/lib/auth-client';
 import { serializeFiles } from '@/lib/schemas';
 import { useDraft } from '@/hooks/use-drafts';
 import { useAtom, useSetAtom } from 'jotai';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 // Component to handle draft loading for each tab
@@ -92,11 +93,16 @@ export function ComposeTabs() {
   const [composeTabs] = useAtom(composeTabsAtom);
   const [activeTabId, setActiveTabId] = useAtom(activeComposeTabIdAtom);
   const [fullscreenTabId] = useAtom(fullscreenTabIdAtom);
-  const addTab = useSetAtom(addComposeTabAtom);
   const removeTab = useSetAtom(removeComposeTabAtom);
   const updateTab = useSetAtom(updateComposeTabAtom);
   const toggleMinimize = useSetAtom(toggleMinimizeTabAtom);
   const toggleFullscreen = useSetAtom(toggleFullscreenTabAtom);
+  const {
+    open: isSidebarOpen,
+    isFullScreen: isAIFullScreen,
+    isSidebar: isAISidebar,
+    viewMode,
+  } = useAISidebar();
 
   const { data: session } = useSession();
   const { data: activeConnection } = useActiveConnection();
@@ -206,134 +212,153 @@ export function ComposeTabs() {
     );
   }
 
+  console.log({
+    isSidebarOpen,
+    isAIFullScreen,
+    isAISidebar,
+    viewMode,
+  });
+
   return (
     <>
-      <div className="fixed bottom-10 right-4 z-40 flex flex-row-reverse items-end gap-3 overflow-y-scroll">
-        <AnimatePresence>
-          {Array.from(composeTabs.values()).map((tab) => {
-            const index = Array.from(composeTabs.values()).indexOf(tab);
+      <div
+        className={cn(
+          'pointer-events-none absolute left-0 z-40 overflow-hidden',
+          'bottom-16 md:bottom-4',
+          'w-[calc(100%_-_52px)] px-3',
+          {
+            'w-[calc(100%_-_(400px_+_32px))]': isSidebarOpen && !isAIFullScreen && !isAISidebar,
+            'w-[calc(100%_-_32px)]': isSidebarOpen && !isAIFullScreen && isAISidebar,
+            'w-[calc(100%)]': isSidebarOpen && viewMode === 'sidebar',
+          },
+        )}
+      >
+        <div className="pointer-events-none flex w-full flex-row-reverse items-end gap-4 overflow-x-scroll">
+          <AnimatePresence>
+            {Array.from(composeTabs.values()).map((tab) => {
+              const index = Array.from(composeTabs.values()).indexOf(tab);
 
-            return (
-              <motion.div
-                key={tab.id}
-                layout
-                layoutId={`compose-tab-${tab.id}`}
-                initial={{ opacity: 0, scale: 0.8, y: 20 }}
-                animate={{
-                  opacity: 1,
-                  scale: 1,
-                  y: 0,
-                  width: tab.isMinimized ? 'auto' : '500px',
-                  height: tab.isMinimized ? 'auto' : '600px',
-                }}
-                exit={{ opacity: 0, scale: 0.8, y: 20 }}
-                transition={{
-                  type: 'spring',
-                  stiffness: 400,
-                  damping: 30,
-                  opacity: { duration: 0.2 },
-                }}
-                style={{
-                  originX: 1,
-                  originY: 1,
-                  zIndex: activeTabId === tab.id ? 10 : index,
-                }}
-                className={
-                  tab.isMinimized
-                    ? 'cursor-pointer'
-                    : 'bg-background overflow-hidden rounded-2xl border shadow-2xl dark:bg-[#313131]'
-                }
-              >
-                <AnimatePresence mode="wait">
-                  {tab.isMinimized ? (
-                    <motion.div
-                      key={`${tab.id}-minimized`}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.15 }}
-                      className="hover:bg-accent flex h-10 items-center gap-2 rounded-2xl border bg-[#FFFFFF] py-2 pl-4 pr-2.5 shadow-lg dark:bg-[#313131]"
-                      onClick={() => toggleMinimize(tab.id)}
-                    >
-                      <span className="text-sm font-medium">
-                        {tab.subject ||
-                          (tab.to?.length
-                            ? `To: ${tab.to[0]}${tab.to.length > 1 ? ` +${tab.to.length - 1}` : ''}`
-                            : 'New Email')}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="hover:bg-destructive/10 h-5 w-5 rounded-lg"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeTab(tab.id);
-                        }}
+              return (
+                <motion.div
+                  key={tab.id}
+                  layout
+                  layoutId={`compose-tab-${tab.id}`}
+                  initial={{ opacity: 0, scale: 0.8, y: 20 }}
+                  animate={{
+                    opacity: 1,
+                    scale: 1,
+                    y: 0,
+                    width: tab.isMinimized ? 'auto' : '500px',
+                    height: tab.isMinimized ? 'auto' : '600px',
+                  }}
+                  exit={{ opacity: 0, scale: 0.8, y: 20 }}
+                  transition={{
+                    type: 'spring',
+                    stiffness: 400,
+                    damping: 30,
+                    opacity: { duration: 0.2 },
+                  }}
+                  style={{
+                    originX: 1,
+                    originY: 1,
+                    zIndex: activeTabId === tab.id ? 10 : index,
+                  }}
+                  className={
+                    tab.isMinimized
+                      ? 'cursor-pointer'
+                      : 'bg-background pointer-events-auto min-w-96 overflow-hidden rounded-2xl border shadow-2xl dark:bg-[#313131]'
+                  }
+                >
+                  <AnimatePresence mode="wait">
+                    {tab.isMinimized ? (
+                      <motion.div
+                        key={`${tab.id}-minimized`}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.15 }}
+                        className="hover:bg-accent pointer-events-auto flex h-10 min-w-40 items-center justify-between gap-2 rounded-2xl border bg-[#FFFFFF] py-2 pl-4 pr-2.5 shadow-lg dark:bg-[#313131]"
+                        onClick={() => toggleMinimize(tab.id)}
                       >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key={`${tab.id}-expanded`}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.15 }}
-                      className="flex h-full flex-col"
-                      onClick={() => setActiveTabId(tab.id)}
-                    >
-                      <div className="flex items-center justify-between border-b px-3 pb-2 pr-1.5 pt-3 dark:bg-[#313131]">
-                        <h3 className="text-sm font-medium">{tab.subject || 'New Email'}</h3>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() => toggleMinimize(tab.id)}
-                          >
-                            <Minus className="h-3 w-3 text-[#909090]" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() => toggleFullscreen(tab.id)}
-                          >
-                            <Maximize2 className="h-3 w-3 text-[#909090]" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              removeTab(tab.id);
-                            }}
-                          >
-                            <X className="h-3 w-3 text-[#909090]" />
-                          </Button>
+                        <span className="line-clamp-1 max-w-[100px] truncate text-sm font-medium">
+                          {tab.subject ||
+                            (tab.to?.length
+                              ? `To: ${tab.to[0]}${tab.to.length > 1 ? ` +${tab.to.length - 1}` : ''}`
+                              : 'New Email')}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="hover:bg-destructive/10 h-5 w-5 rounded-lg"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeTab(tab.id);
+                          }}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key={`${tab.id}-expanded`}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.15 }}
+                        className="flex h-full flex-col"
+                        onClick={() => setActiveTabId(tab.id)}
+                      >
+                        <div className="pointer-events-auto flex items-center justify-between border-b px-3 pb-2 pr-1.5 pt-3 dark:bg-[#313131]">
+                          <h3 className="text-sm font-medium">{tab.subject || 'New Email'}</h3>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => toggleMinimize(tab.id)}
+                            >
+                              <Minus className="h-3 w-3 text-[#909090]" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => toggleFullscreen(tab.id)}
+                            >
+                              <Maximize2 className="h-3 w-3 text-[#909090]" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeTab(tab.id);
+                              }}
+                            >
+                              <X className="h-3 w-3 text-[#909090]" />
+                            </Button>
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="flex-1 overflow-y-auto dark:bg-[#313131]">
-                        <ComposeTabContent
-                          tab={tab}
-                          tabId={tab.id}
-                          onSendEmail={handleSendEmail}
-                          onChange={(updates) => updateTab({ id: tab.id, updates })}
-                          updateTab={updateTab}
-                          settingsLoading={settingsLoading}
-                        />
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            );
-          })}
-        </AnimatePresence>
-        {/*
+                        <div className="flex-1 overflow-y-auto dark:bg-[#313131]">
+                          <ComposeTabContent
+                            tab={tab}
+                            tabId={tab.id}
+                            onSendEmail={handleSendEmail}
+                            onChange={(updates) => updateTab({ id: tab.id, updates })}
+                            updateTab={updateTab}
+                            settingsLoading={settingsLoading}
+                          />
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
+          {/*
         <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}>
           <Button
             variant="outline"
@@ -344,6 +369,7 @@ export function ComposeTabs() {
             <Plus className="h-4 w-4" />
           </Button>
         </motion.div> */}
+        </div>
       </div>
     </>
   );
