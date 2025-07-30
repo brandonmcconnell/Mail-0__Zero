@@ -135,7 +135,7 @@ const TemplateButtonComponent: React.FC<TemplateButtonProps> = ({
   }, [editor, setSubject, setRecipients]);
 
   const handleDeleteTemplate = useCallback(
-    async (templateId: string, templateName: string) => {
+    async (templateId: string) => {
       try {
         await deleteTemplateMutation({ id: templateId });
         await queryClient.invalidateQueries({
@@ -203,7 +203,7 @@ const TemplateButtonComponent: React.FC<TemplateButtonProps> = ({
                             duration: 10000,
                             action: {
                               label: 'Delete',
-                              onClick: () => handleDeleteTemplate(t.id, t.name),
+                              onClick: () => handleDeleteTemplate(t.id),
                             },
                             className: 'pointer-events-auto',
                             style: {

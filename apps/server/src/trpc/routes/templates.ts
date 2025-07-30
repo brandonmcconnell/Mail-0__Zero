@@ -1,6 +1,5 @@
 import { TemplatesManager } from '../../lib/templates-manager';
 import { privateProcedure, router } from '../trpc';
-import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
 const templatesProcedure = privateProcedure.use(async ({ ctx, next }) => {
