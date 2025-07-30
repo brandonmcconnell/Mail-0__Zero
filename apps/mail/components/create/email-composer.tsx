@@ -617,11 +617,8 @@ export function EmailComposer({
             <div className="flex w-full items-center gap-2">
               <p className="text-sm font-medium text-[#8C8C8C]">To:</p>
               <RecipientAutosuggest
-                recipients={toEmails}
-                onRecipientsChange={(recipients) => {
-                  setValue('to', recipients, { shouldDirty: true });
-                  setHasUnsavedChanges(true);
-                }}
+                control={form.control}
+                name="to"
                 placeholder="Enter email address"
                 disabled={isLoading}
               />
@@ -660,11 +657,8 @@ export function EmailComposer({
               <div className="flex items-center gap-2 px-3">
                 <p className="text-sm font-medium text-[#8C8C8C]">Cc:</p>
                 <RecipientAutosuggest
-                  recipients={ccEmails || []}
-                  onRecipientsChange={(recipients) => {
-                    setValue('cc', recipients, { shouldDirty: true });
-                    setHasUnsavedChanges(true);
-                  }}
+                  control={form.control}
+                  name="cc"
                   placeholder="Enter email for Cc"
                   disabled={isLoading}
                 />
@@ -676,11 +670,8 @@ export function EmailComposer({
               <div className="flex items-center gap-2 px-3">
                 <p className="text-sm font-medium text-[#8C8C8C]">Bcc:</p>
                 <RecipientAutosuggest
-                  recipients={bccEmails || []}
-                  onRecipientsChange={(recipients) => {
-                    setValue('bcc', recipients, { shouldDirty: true });
-                    setHasUnsavedChanges(true);
-                  }}
+                  control={form.control}
+                  name="bcc"
                   placeholder="Enter email for Bcc"
                   disabled={isLoading}
                 />
