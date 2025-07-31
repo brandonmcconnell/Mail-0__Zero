@@ -224,7 +224,7 @@ export function ComposeTabs() {
       <div
         className={cn(
           'pointer-events-none absolute left-0 z-40 overflow-hidden',
-          'bottom-16 md:bottom-4',
+          'bottom-[70px] md:bottom-4',
           'w-[calc(100%_-_52px)] px-3',
           {
             'w-[calc(100%_-_(400px_+_32px))]': isSidebarOpen && !isAIFullScreen && !isAISidebar,
