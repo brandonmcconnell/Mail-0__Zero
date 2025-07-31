@@ -813,7 +813,7 @@ importers:
         specifier: ^2.0.8
         version: 2.10.4(@types/node@22.15.29)(typescript@5.8.3)
       typescript:
-        specifier: 'catalog:'
+        specifier: ^5.4.0
         version: 5.8.3
       vitest:
         specifier: ^1.0.4
