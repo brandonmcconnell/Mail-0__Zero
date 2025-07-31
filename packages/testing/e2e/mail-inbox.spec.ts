@@ -21,7 +21,7 @@ test.describe('Signing In, Sending mail, Replying to a mail', () => {
         await page.waitForTimeout(1500);
         console.log('Modal successfully dismissed');
       }
-    } catch (e) {
+    } catch {
       console.log('No onboarding modal found, proceeding...');
     }
     
@@ -44,7 +44,7 @@ test.describe('Signing In, Sending mail, Replying to a mail', () => {
     await page.waitForTimeout(10000);
 
     console.log('Looking for the first email in the list...');
-    await page.getByText(/PM|AM/).first().click({ force: true });
+    await page.locator('[data-thread-id]').first().click();
     console.log('Clicked on email (PM/AM area).');
 
     console.log('Looking for Reply button to confirm email is open...');
@@ -65,7 +65,7 @@ test.describe('Signing In, Sending mail, Replying to a mail', () => {
         console.log(`Clicked Reply button using: ${selector}`);
         replyClicked = true;
         break;
-      } catch (e) {
+      } catch {
         console.log(`Failed to click with ${selector}`);
       }
     }
