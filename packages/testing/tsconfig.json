@@ -4,26 +4,18 @@
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
-    "types": ["vitest/globals", "@testing-library/jest-dom", "node"],
-    
-    /* Bundler mode */
+    "types": ["vitest/globals", "@testing-library/jest-dom", "node", "@playwright/test"],
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    
-    /* JSX */
     "jsx": "react-jsx",
     "jsxImportSource": "react",
-    
-    /* Linting */
     "strict": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
-    
-    /* Paths */
     "baseUrl": ".",
     "paths": {
       "@/*": ["../../apps/mail/*"],
@@ -35,7 +27,8 @@
     "**/*.ts",
     "**/*.tsx",
     "**/*.test.ts",
-    "**/*.test.tsx"
+    "**/*.test.tsx",
+    "e2e/**/*.ts"
   ],
   "exclude": ["node_modules", "dist"]
 }
