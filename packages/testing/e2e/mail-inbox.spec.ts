@@ -1,5 +1,11 @@
 import { test, expect } from '@playwright/test';
 
+const email = process.env.EMAIL;
+
+if (!email) {
+    throw new Error('EMAIL environment variable must be set.');
+  }
+
 test.describe('Signing In, Sending mail, Replying to a mail', () => {
   test('should send and reply to an email in the same session', async ({ page }) => {
     await page.goto('/mail/inbox');
@@ -26,7 +32,7 @@ test.describe('Signing In, Sending mail, Replying to a mail', () => {
     await page.getByText('New email').click();
     await page.waitForTimeout(2000);
     
-    await page.locator('input').first().fill('iamamrit27@gmail.com');
+    await page.locator('input').first().fill(email);
     console.log('Filled To: field');
     
     await page.getByRole('button', { name: 'Send' }).click();
