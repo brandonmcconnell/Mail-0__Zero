@@ -17,15 +17,14 @@ import {
 } from './db/schema';
 import { env, DurableObject, RpcTarget, WorkerEntrypoint } from 'cloudflare:workers';
 import { EProviders, type ISubscribeBatch, type IThreadBatch } from './types';
+import { getZeroClient, verifyToken } from './lib/server-utils';
 import { oAuthDiscoveryMetadata } from 'better-auth/plugins';
-import { getZeroDB, verifyToken } from './lib/server-utils';
 import { eq, and, desc, asc, inArray } from 'drizzle-orm';
 import { ThinkingMCP } from './lib/sequential-thinking';
 import { ZeroAgent, ZeroDriver } from './routes/agent';
 import { contextStorage } from 'hono/context-storage';
 import { defaultUserSettings } from './lib/schemas';
 import { createLocalJWKSet, jwtVerify } from 'jose';
-import { getZeroAgent } from './lib/server-utils';
 import { enableBrainFunction } from './lib/brain';
 import { trpcServer } from '@hono/trpc-server';
 import { agentsMiddleware } from 'hono-agents';
@@ -33,6 +32,7 @@ import { ZeroMCP } from './routes/agent/mcp';
 import { publicRouter } from './routes/auth';
 import { WorkflowRunner } from './pipelines';
 import { autumnApi } from './routes/autumn';
+import { QueryableHandler } from 'dormroom';
 import type { HonoContext } from './ctx';
 import { createDb, type DB } from './db';
 import { createAuth } from './lib/auth';
@@ -41,6 +41,14 @@ import { Autumn } from 'autumn-js';
 import { appRouter } from './trpc';
 import { cors } from 'hono/cors';
 import { Hono } from 'hono';
+
+type Env = {
+  ZERO_DRIVER: DurableObjectNamespace<ZeroDriver & QueryableHandler>;
+  HYPERDRIVE: { connectionString: string };
+  snoozed_emails: KVNamespace;
+  gmail_sub_age: KVNamespace;
+  subscribe_queue: Queue;
+};
 
 const SENTRY_HOST = 'o4509328786915328.ingest.us.sentry.io';
 const SENTRY_PROJECT_IDS = new Set(['4509328795303936']);
@@ -193,7 +201,7 @@ export class DbRpcDO extends RpcTarget {
 }
 
 class ZeroDB extends DurableObject<Env> {
-  db: DB = createDb(env.HYPERDRIVE.connectionString).db;
+  db: DB = createDb(this.env.HYPERDRIVE.connectionString).db;
 
   async setMetaData(userId: string) {
     return new DbRpcDO(this, userId);
@@ -777,6 +785,12 @@ const app = new Hono<HonoContext>()
   });
 export default class Entry extends WorkerEntrypoint<Env> {
   async fetch(request: Request): Promise<Response> {
+    // const url = new URL(request.url);
+    // if (url.pathname === '/__studio') {
+    //   return await studio(request, env.ZERO_DRIVER, {
+    //     basicAuth: { username: 'admin', password: 'password' },
+    //   });
+    // }
     return app.fetch(request, this.env, this.ctx);
   }
   async queue(batch: MessageBatch<any>) {
@@ -826,7 +840,7 @@ export default class Entry extends WorkerEntrypoint<Env> {
   }
   async scheduled() {
     console.log('[SCHEDULED] Checking for expired subscriptions...');
-    const { db, conn } = createDb(env.HYPERDRIVE.connectionString);
+    const { db, conn } = createDb(this.env.HYPERDRIVE.connectionString);
     const allAccounts = await db.query.connection.findMany({
       where: (fields, { isNotNull, and }) =>
         and(isNotNull(fields.accessToken), isNotNull(fields.refreshToken)),
@@ -847,7 +861,7 @@ export default class Entry extends WorkerEntrypoint<Env> {
       const listResp: {
         keys: { name: string; metadata?: { wakeAt?: string } }[];
         cursor?: string;
-      } = await env.snoozed_emails.list({ cursor, limit: 1000 });
+      } = await this.env.snoozed_emails.list({ cursor, limit: 1000 });
       cursor = listResp.cursor;
 
       for (const key of listResp.keys) {
@@ -874,7 +888,7 @@ export default class Entry extends WorkerEntrypoint<Env> {
     await Promise.all(
       Object.entries(unsnoozeMap).map(async ([connectionId, { threadIds, keyNames }]) => {
         try {
-          const agent = await getZeroAgent(connectionId);
+          const agent = await getZeroClient(connectionId, this.ctx);
           await agent.queue('unsnoozeThreadsHandler', { connectionId, threadIds, keyNames });
         } catch (error) {
           console.error('Failed to enqueue unsnooze tasks', { connectionId, threadIds, error });
@@ -884,7 +898,7 @@ export default class Entry extends WorkerEntrypoint<Env> {
 
     await Promise.all(
       allAccounts.map(async ({ id, providerId }) => {
-        const lastSubscribed = await env.gmail_sub_age.get(`${id}__${providerId}`);
+        const lastSubscribed = await this.env.gmail_sub_age.get(`${id}__${providerId}`);
 
         if (lastSubscribed) {
           const subscriptionDate = new Date(lastSubscribed);
@@ -905,7 +919,7 @@ export default class Entry extends WorkerEntrypoint<Env> {
       );
       await Promise.all(
         expiredSubscriptions.map(async ({ connectionId, providerId }) => {
-          await env.subscribe_queue.send({ connectionId, providerId });
+          await this.env.subscribe_queue.send({ connectionId, providerId });
         }),
       );
     }
