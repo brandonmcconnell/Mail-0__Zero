@@ -311,10 +311,50 @@ export const createDefaultWorkflows = (): WorkflowEngine => {
     ],
   };
 
+  const subscriptionManagementWorkflow: WorkflowDefinition = {
+    name: 'subscription-management',
+    description: 'Detects, categorizes and manages subscription emails',
+    steps: [
+      {
+        id: 'detect-and-save-subscription',
+        name: 'Detect and Save Subscription',
+        description: 'Detects if email is a subscription and saves it to database',
+        enabled: true,
+        action: workflowFunctions.detectAndSaveSubscription,
+        errorHandling: 'continue',
+      },
+      {
+        id: 'apply-subscription-label',
+        name: 'Apply Subscription Label',
+        description: 'Applies appropriate label to subscription emails',
+        enabled: true,
+        condition: (context) => {
+          const result = context.results?.get('detect-and-save-subscription');
+          return result?.isSubscription === true;
+        },
+        action: workflowFunctions.applySubscriptionLabel,
+        errorHandling: 'continue',
+      },
+      {
+        id: 'check-auto-archive',
+        name: 'Check Auto Archive Preference',
+        description: 'Checks if subscription should be auto-archived based on user preferences',
+        enabled: true,
+        condition: (context) => {
+          const result = context.results?.get('detect-and-save-subscription');
+          return result?.isSubscription === true;
+        },
+        action: workflowFunctions.checkAutoArchivePreference,
+        errorHandling: 'continue',
+      },
+    ],
+  };
+
   engine.registerWorkflow(autoDraftWorkflow);
   engine.registerWorkflow(vectorizationWorkflow);
   engine.registerWorkflow(threadSummaryWorkflow);
   engine.registerWorkflow(labelGenerationWorkflow);
+  engine.registerWorkflow(subscriptionManagementWorkflow);
 
   return engine;
 };

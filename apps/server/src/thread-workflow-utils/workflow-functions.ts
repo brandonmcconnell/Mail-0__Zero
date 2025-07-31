@@ -1,18 +1,26 @@
 import {
+  analyzeEmailIntent,
+  generateAutomaticDraft,
+  detectSubscriptionEmail,
+  categorizeSubscription,
+} from './index';
+import {
   SummarizeMessage,
   ThreadLabels,
   ReSummarizeThread,
   SummarizeThread,
 } from '../lib/brain.fallback.prompts';
 import { EPrompts, defaultLabels, type ParsedMessage } from '../types';
-import { analyzeEmailIntent, generateAutomaticDraft } from './index';
 import { getPrompt, getEmbeddingVector } from '../pipelines.effect';
+import { subscriptions, subscriptionThreads } from '../db/schema';
 import { messageToXML, threadToXML } from './workflow-utils';
 import type { WorkflowContext } from './workflow-engine';
 import { bulkDeleteKeys } from '../lib/bulk-delete';
 import { getZeroAgent } from '../lib/server-utils';
 import { getPromptName } from '../pipelines';
 import { env } from 'cloudflare:workers';
+import { eq, and } from 'drizzle-orm';
+import { createDb } from '../db';
 import { Effect } from 'effect';
 
 export type WorkflowFunction = (context: WorkflowContext) => Promise<any>;
@@ -519,6 +527,186 @@ export const workflowFunctions: Record<string, WorkflowFunction> = {
 
     console.log('[WORKFLOW_FUNCTIONS] No valid labels found in user account');
     return { applied: false };
+  },
+
+  detectAndSaveSubscription: async (context) => {
+    console.log('[WORKFLOW_FUNCTIONS] Detecting subscription email');
+
+    if (!context.thread.messages || context.thread.messages.length === 0) {
+      return { isSubscription: false };
+    }
+
+    const latestMessage = context.thread.messages[context.thread.messages.length - 1];
+    const isSubscription = detectSubscriptionEmail(latestMessage);
+
+    if (!isSubscription) {
+      console.log('[WORKFLOW_FUNCTIONS] Email is not a subscription');
+      return { isSubscription: false };
+    }
+
+    const subscriptionInfo = categorizeSubscription(latestMessage);
+    const senderEmail = latestMessage.sender?.email || '';
+    const senderDomain = senderEmail.split('@')[1] || '';
+
+    console.log('[WORKFLOW_FUNCTIONS] Detected subscription:', {
+      threadId: context.threadId,
+      category: subscriptionInfo.category,
+      confidence: subscriptionInfo.confidence,
+      sender: senderEmail,
+    });
+
+    const { db, conn } = createDb(env.HYPERDRIVE.connectionString);
+
+    try {
+      // Check if subscription already exists
+      const [existingSubscription] = await db
+        .select()
+        .from(subscriptions)
+        .where(
+          and(
+            eq(subscriptions.connectionId, context.connectionId),
+            eq(subscriptions.senderEmail, senderEmail),
+          ),
+        );
+
+      let subscriptionId: string;
+
+      if (existingSubscription) {
+        // Update existing subscription
+        subscriptionId = existingSubscription.id;
+        await db
+          .update(subscriptions)
+          .set({
+            lastEmailReceivedAt: new Date(latestMessage.receivedOn),
+            emailCount: existingSubscription.emailCount + 1,
+            metadata: {
+              ...(existingSubscription.metadata || {}),
+              lastSubject: latestMessage.subject,
+            },
+            updatedAt: new Date(),
+          })
+          .where(eq(subscriptions.id, subscriptionId));
+
+        console.log('[WORKFLOW_FUNCTIONS] Updated existing subscription:', subscriptionId);
+      } else {
+        // Create new subscription
+        subscriptionId = crypto.randomUUID();
+        await db.insert(subscriptions).values({
+          id: subscriptionId,
+          userId: context.foundConnection.userId,
+          connectionId: context.connectionId,
+          senderEmail,
+          senderName: latestMessage.sender?.name || null,
+          senderDomain,
+          category: subscriptionInfo.category,
+          listUnsubscribeUrl: latestMessage.listUnsubscribe || null,
+          listUnsubscribePost: latestMessage.listUnsubscribePost || null,
+          lastEmailReceivedAt: new Date(latestMessage.receivedOn),
+          emailCount: 1,
+          isActive: true,
+          autoArchive: false,
+          metadata: {
+            lastSubject: latestMessage.subject,
+          },
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+
+        console.log('[WORKFLOW_FUNCTIONS] Created new subscription:', subscriptionId);
+      }
+
+      // Add thread to subscription_threads
+      await db.insert(subscriptionThreads).values({
+        id: crypto.randomUUID(),
+        subscriptionId,
+        threadId: context.threadId,
+        messageId: latestMessage.id,
+        receivedAt: new Date(latestMessage.receivedOn),
+        subject: latestMessage.subject,
+        createdAt: new Date(),
+      });
+
+      console.log('[WORKFLOW_FUNCTIONS] Added thread to subscription tracking');
+
+      return {
+        isSubscription: true,
+        subscriptionId,
+        category: subscriptionInfo.category,
+        senderEmail,
+        listUnsubscribe: latestMessage.listUnsubscribe,
+      };
+    } catch (error) {
+      console.error('[WORKFLOW_FUNCTIONS] Error saving subscription:', error);
+      return { isSubscription: false, error };
+    } finally {
+      await conn.end();
+    }
+  },
+
+  applySubscriptionLabel: async (context) => {
+    const subscriptionResult = context.results?.get('detect-and-save-subscription');
+    if (!subscriptionResult?.isSubscription) {
+      console.log('[WORKFLOW_FUNCTIONS] No subscription to label');
+      return { labeled: false };
+    }
+
+    try {
+      const agent = await getZeroAgent(context.connectionId);
+      const userLabels = await agent.getUserLabels();
+
+      // Look for subscription-related labels
+      const subscriptionLabels = userLabels.filter((label: any) =>
+        /subscription|newsletter|marketing|promotional/i.test(label.name),
+      );
+
+      if (subscriptionLabels.length === 0) {
+        console.log('[WORKFLOW_FUNCTIONS] No subscription labels found');
+        return { labeled: false };
+      }
+
+      // Use the most appropriate label based on category
+      let labelToApply = subscriptionLabels[0];
+      const categoryLabels: Record<string, RegExp> = {
+        newsletter: /newsletter/i,
+        promotional: /promotional|marketing|promo/i,
+        social: /social/i,
+        development: /development|dev/i,
+        transactional: /transactional|receipt/i,
+      };
+
+      for (const label of subscriptionLabels) {
+        const categoryRegex = categoryLabels[subscriptionResult.category];
+        if (categoryRegex && categoryRegex.test(label.name)) {
+          labelToApply = label;
+          break;
+        }
+      }
+
+      await agent.modifyThreadLabelsInDB(context.threadId, [labelToApply.id], []);
+      console.log('[WORKFLOW_FUNCTIONS] Applied subscription label:', labelToApply.name);
+
+      return { labeled: true, labelId: labelToApply.id, labelName: labelToApply.name };
+    } catch (error) {
+      console.error('[WORKFLOW_FUNCTIONS] Error applying subscription label:', error);
+      return { labeled: false, error };
+    }
+  },
+
+  checkAutoArchivePreference: async (context) => {
+    const subscriptionResult = context.results?.get('detect-and-save-subscription');
+    if (!subscriptionResult?.isSubscription) {
+      return { shouldArchive: false };
+    }
+
+    try {
+      // In the future, this could check user preferences
+      // For now, we'll just return false
+      console.log('[WORKFLOW_FUNCTIONS] Auto-archive check - currently disabled');
+      return { shouldArchive: false };
+    } catch (error) {
+      console.error('[WORKFLOW_FUNCTIONS] Error checking auto-archive preference:', error);
+      return { shouldArchive: false, error };
+    }
   },
 };
 

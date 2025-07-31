@@ -319,3 +319,69 @@ export const emailTemplate = createTable(
     unique('mail0_email_template_user_id_name_unique').on(t.userId, t.name),
   ],
 );
+
+export const subscriptions = createTable(
+  'subscriptions',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    connectionId: text('connection_id')
+      .notNull()
+      .references(() => connection.id, { onDelete: 'cascade' }),
+    senderEmail: text('sender_email').notNull(),
+    senderName: text('sender_name'),
+    senderDomain: text('sender_domain').notNull(),
+    category: text('category')
+      .$type<
+        'newsletter' | 'promotional' | 'social' | 'development' | 'transactional' | 'general'
+      >()
+      .notNull()
+      .default('general'),
+    listUnsubscribeUrl: text('list_unsubscribe_url'),
+    listUnsubscribePost: text('list_unsubscribe_post'),
+    lastEmailReceivedAt: timestamp('last_email_received_at').notNull(),
+    emailCount: integer('email_count').notNull().default(1),
+    isActive: boolean('is_active').notNull().default(true),
+    userUnsubscribedAt: timestamp('user_unsubscribed_at'),
+    autoArchive: boolean('auto_archive').notNull().default(false),
+    metadata: jsonb('metadata').$type<{
+      frequency?: 'daily' | 'weekly' | 'monthly' | 'irregular';
+      averageEmailsPerMonth?: number;
+      keywords?: string[];
+      lastSubject?: string;
+    }>(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('subscriptions_user_id_idx').on(t.userId),
+    index('subscriptions_connection_id_idx').on(t.connectionId),
+    index('subscriptions_sender_email_idx').on(t.senderEmail),
+    index('subscriptions_sender_domain_idx').on(t.senderDomain),
+    index('subscriptions_category_idx').on(t.category),
+    index('subscriptions_is_active_idx').on(t.isActive),
+    unique('subscriptions_connection_sender_unique').on(t.connectionId, t.senderEmail),
+  ],
+);
+
+export const subscriptionThreads = createTable(
+  'subscription_threads',
+  {
+    id: text('id').primaryKey(),
+    subscriptionId: text('subscription_id')
+      .notNull()
+      .references(() => subscriptions.id, { onDelete: 'cascade' }),
+    threadId: text('thread_id').notNull(),
+    messageId: text('message_id').notNull(),
+    receivedAt: timestamp('received_at').notNull(),
+    subject: text('subject'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('subscription_threads_subscription_id_idx').on(t.subscriptionId),
+    index('subscription_threads_thread_id_idx').on(t.threadId),
+    index('subscription_threads_received_at_idx').on(t.receivedAt),
+  ],
+);

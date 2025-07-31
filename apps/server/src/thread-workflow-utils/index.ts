@@ -135,4 +135,129 @@ const generateAutomaticDraft = async (
   }
 };
 
-export { analyzeEmailIntent, generateAutomaticDraft, shouldGenerateDraft };
+const detectSubscriptionEmail = (message: ParsedMessage): boolean => {
+  // Check for List-Unsubscribe header
+  if (message.listUnsubscribe) {
+    console.log('[DETECT_SUBSCRIPTION] Found List-Unsubscribe header');
+    return true;
+  }
+
+  const senderEmail = message.sender?.email?.toLowerCase() || '';
+  const senderName = message.sender?.name?.toLowerCase() || '';
+  const subject = message.subject?.toLowerCase() || '';
+  const decodedBody = message.decodedBody?.toLowerCase() || '';
+
+  // Common subscription sender patterns
+  const subscriptionSenderPatterns = [
+    /newsletter/,
+    /no-?reply/,
+    /donotreply/,
+    /noreply/,
+    /notifications?/,
+    /updates?/,
+    /digest/,
+    /bulletin/,
+    /announcements?/,
+    /marketing/,
+    /promotions?/,
+    /campaigns?/,
+  ];
+
+  // Check sender email/name
+  const senderIsSubscription = subscriptionSenderPatterns.some(
+    (pattern) => pattern.test(senderEmail) || pattern.test(senderName),
+  );
+
+  if (senderIsSubscription) {
+    console.log('[DETECT_SUBSCRIPTION] Sender matches subscription pattern');
+    return true;
+  }
+
+  // Common subscription subject patterns
+  const subscriptionSubjectPatterns = [
+    /newsletter/,
+    /weekly.*digest/,
+    /daily.*digest/,
+    /monthly.*update/,
+    /\[.*\]/, // Often newsletters use [Company Name] format
+    /issue\s*#?\d+/i,
+    /edition/i,
+    /bulletin/i,
+  ];
+
+  const subjectIsSubscription = subscriptionSubjectPatterns.some((pattern) =>
+    pattern.test(subject),
+  );
+
+  if (subjectIsSubscription) {
+    console.log('[DETECT_SUBSCRIPTION] Subject matches subscription pattern');
+    return true;
+  }
+
+  // Common subscription body patterns
+  const subscriptionBodyPatterns = [
+    /unsubscribe/i,
+    /opt-?out/i,
+    /email.*preferences/i,
+    /manage.*subscription/i,
+    /update.*preferences/i,
+    /stop.*receiving/i,
+    /remove.*from.*list/i,
+    /click.*here.*to.*unsubscribe/i,
+    /no.*longer.*wish.*receive/i,
+    /view.*in.*browser/i,
+    /this.*email.*was.*sent.*to/i,
+    /you.*are.*receiving.*this.*because/i,
+  ];
+
+  const bodyIsSubscription = subscriptionBodyPatterns.some((pattern) => pattern.test(decodedBody));
+
+  if (bodyIsSubscription) {
+    console.log('[DETECT_SUBSCRIPTION] Body contains subscription patterns');
+    return true;
+  }
+
+  return false;
+};
+
+const categorizeSubscription = (
+  message: ParsedMessage,
+): {
+  category: 'newsletter' | 'promotional' | 'social' | 'development' | 'transactional' | 'general';
+  confidence: number;
+} => {
+  const content = (message.decodedBody || message.body || '').toLowerCase();
+  const subject = (message.subject || '').toLowerCase();
+  const sender = (message.sender?.email || '').toLowerCase();
+  const combinedText = sender + ' ' + subject + ' ' + content;
+
+  if (/github|gitlab|bitbucket|jira|confluence|stack\s?overflow/.test(combinedText)) {
+    return { category: 'development', confidence: 0.9 };
+  }
+
+  if (/sale|discount|offer|deal|coupon|promo|% off|\$\d+/.test(combinedText)) {
+    return { category: 'promotional', confidence: 0.85 };
+  }
+
+  if (/news|daily|weekly|digest|bulletin|roundup/.test(combinedText)) {
+    return { category: 'newsletter', confidence: 0.8 };
+  }
+
+  if (/transaction|receipt|order|invoice|payment|purchase|confirm/.test(combinedText)) {
+    return { category: 'transactional', confidence: 0.9 };
+  }
+
+  if (/facebook|twitter|linkedin|instagram|youtube|tiktok/.test(combinedText)) {
+    return { category: 'social', confidence: 0.85 };
+  }
+
+  return { category: 'general', confidence: 0.5 };
+};
+
+export {
+  analyzeEmailIntent,
+  generateAutomaticDraft,
+  shouldGenerateDraft,
+  detectSubscriptionEmail,
+  categorizeSubscription,
+};
