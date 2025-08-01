@@ -161,7 +161,7 @@ const TemplateButtonComponent: React.FC<TemplateButtonProps> = ({
             Templates
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="z-[99999] w-60" align="start" sideOffset={6}>
+        <DropdownMenuContent className="z-99999 w-60" align="start" sideOffset={6}>
           <DropdownMenuItem
             onSelect={() => {
               setMenuOpen(false);
@@ -176,7 +176,7 @@ const TemplateButtonComponent: React.FC<TemplateButtonProps> = ({
               <DropdownMenuSubTrigger>
                 <FileText className="mr-2 h-3.5 w-3.5" /> Use template
               </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="z-[99999] w-60">
+              <DropdownMenuSubContent className="z-99999 w-60">
                 <div className="p-2 border-b border-border sticky top-0 bg-background">
                   <Input
                     placeholder="Search..."
