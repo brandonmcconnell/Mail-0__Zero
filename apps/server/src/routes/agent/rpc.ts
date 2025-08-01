@@ -270,4 +270,45 @@ export class DriverRpcDO extends RpcTarget {
     }
     return queueFn(callbackName, payload);
   }
+
+  // Subscription Management Methods
+  async listSubscriptions(params: {
+    userId: string;
+    connectionId?: string;
+    category?: string;
+    isActive?: boolean;
+    limit?: number;
+    offset?: number;
+  }) {
+    return await this.mainDo.listSubscriptions(params);
+  }
+
+  async getSubscription(subscriptionId: string, userId: string) {
+    return await this.mainDo.getSubscription(subscriptionId, userId);
+  }
+
+  async unsubscribeFromEmail(subscriptionId: string, userId: string) {
+    return await this.mainDo.unsubscribeFromEmail(subscriptionId, userId);
+  }
+
+  async resubscribeToEmail(subscriptionId: string, userId: string) {
+    return await this.mainDo.resubscribeToEmail(subscriptionId, userId);
+  }
+
+  async updateSubscriptionPreferences(params: {
+    subscriptionId: string;
+    userId: string;
+    autoArchive?: boolean;
+    category?: string;
+  }) {
+    return await this.mainDo.updateSubscriptionPreferences(params);
+  }
+
+  async bulkUnsubscribeEmails(subscriptionIds: string[], userId: string) {
+    return await this.mainDo.bulkUnsubscribeEmails(subscriptionIds, userId);
+  }
+
+  async getSubscriptionStats(userId: string, connectionId?: string) {
+    return await this.mainDo.getSubscriptionStats(userId, connectionId);
+  }
 }
