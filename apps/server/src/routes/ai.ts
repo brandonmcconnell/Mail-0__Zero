@@ -2,7 +2,7 @@ import { getCurrentDateContext, GmailSearchAssistantSystemPrompt } from '../lib/
 import { systemPrompt } from '../services/call-service/system-prompt';
 import { composeEmail } from '../trpc/routes/ai/compose';
 import { getZeroAgent } from '../lib/server-utils';
-import { env } from 'cloudflare:workers';
+import { env } from '../env';
 import { openai } from '@ai-sdk/openai';
 import { generateText } from 'ai';
 import { Tools } from '../types';

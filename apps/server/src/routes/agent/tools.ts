@@ -4,7 +4,7 @@ import { generateText, tool } from 'ai';
 
 import { getZeroAgent } from '../../lib/server-utils';
 import { colors } from '../../lib/prompts';
-import { env } from 'cloudflare:workers';
+import { env } from '../../env';
 import { Tools } from '../../types';
 import { z } from 'zod';
 
