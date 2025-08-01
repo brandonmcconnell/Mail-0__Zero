@@ -27,6 +27,7 @@ import { Avatar } from '../ui/avatar';
 import { useTRPC } from '@/providers/query-provider';
 import { useThreadLabels } from '@/hooks/use-labels';
 
+import { OTPCodesDisplay } from './otp-codes-display';
 import { useSettings } from '@/hooks/use-settings';
 
 import { useKeyState } from '@/hooks/use-hot-key';
@@ -930,6 +931,11 @@ export const MailList = memo(
               </div>
             ) : (
               <div className="flex flex-1 flex-col" id="mail-list-scroll">
+                {folder === 'inbox' && (
+                  <div>
+                    <OTPCodesDisplay />
+                  </div>
+                )}
                 <VList
                   ref={vListRef}
                   count={filteredItems.length}
