@@ -1,22 +1,28 @@
-@import '@fontsource-variable/geist';
-@import '@fontsource-variable/geist-mono';
+@import '@fontsource-variable/geist' layer(base);
+@import '@fontsource-variable/geist-mono' layer(base);
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
-  .horizontal-fade-mask {
-    @apply overflow-x-auto;
-    position: relative;
-  }
+@utility text-balance {
+  text-wrap: balance;
+}
+
+@utility horizontal-fade-mask {
+  @apply overflow-x-auto;
+  position: relative;
   @supports (mask-image: linear-gradient(to right, transparent, black)) or
     (-webkit-mask-image: linear-gradient(to right, transparent, black)) {
-    .horizontal-fade-mask::before,
-    .horizontal-fade-mask::after {
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      height: 100%;
+      width: 15%;
+      pointer-events: none;
+      background: hsl(var(--panel));
+      z-index: 1;
+    }
+    &::after {
       content: '';
       position: absolute;
       top: 0;
@@ -27,13 +33,13 @@
       z-index: 1;
     }
 
-    .horizontal-fade-mask::before {
+    &::before {
       left: 0;
       -webkit-mask-image: linear-gradient(to right, white, transparent);
       mask-image: linear-gradient(to right, white, transparent);
     }
 
-    .horizontal-fade-mask::after {
+    &::after {
       right: 0;
       -webkit-mask-image: linear-gradient(to left, white, transparent);
       mask-image: linear-gradient(to left, white, transparent);
