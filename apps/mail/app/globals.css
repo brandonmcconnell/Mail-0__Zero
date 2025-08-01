@@ -13,7 +13,7 @@
 @plugin "tailwind-scrollbar" {
   nocompatible: true;
   preferredStrategy: "pseudoelements";
-};
+}
 
 /* Custom variant for dark mode */
 @custom-variant dark (&:where(.dark, .dark *));
