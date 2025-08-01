@@ -24,9 +24,6 @@ catalogs:
     drizzle-kit:
       specifier: ^0.31.1
       version: 0.31.4
-    drizzle-orm:
-      specifier: ^0.43.1
-      version: 0.43.1
     react:
       specifier: ^19.1.0
       version: 19.1.0
@@ -465,9 +462,6 @@ importers:
       jiti:
         specifier: 2.4.2
         version: 2.4.2
-      postcss:
-        specifier: 8.5.3
-        version: 8.5.3
       remeda:
         specifier: 2.21.3
         version: 2.21.3

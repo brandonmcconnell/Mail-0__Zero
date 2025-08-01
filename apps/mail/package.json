@@ -137,7 +137,6 @@
     "drizzle-kit": "catalog:",
     "eslint": "9.27.0",
     "jiti": "2.4.2",
-    "postcss": "8.5.3",
     "remeda": "2.21.3",
     "tailwind-scrollbar": "4.0.2",
     "tailwindcss": "4.1.11",
