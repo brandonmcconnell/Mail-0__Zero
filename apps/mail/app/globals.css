@@ -1,7 +1,22 @@
 @import '@fontsource-variable/geist' layer(base);
 @import '@fontsource-variable/geist-mono' layer(base);
 
+/*
+  Automatic source detection should suffice, but for more control, check
+  the docs on Detecting classes in source files, namely `source(none)`:
+  https://tailwindcss.com/docs/detecting-classes-in-source-files
+*/
 @import 'tailwindcss';
+
+/* Plugins */
+@plugin "tailwindcss-animate";
+@plugin "tailwind-scrollbar" {
+  nocompatible: true;
+  preferredStrategy: "pseudoelements";
+};
+
+/* Custom variant for dark mode */
+@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
   /* Typography */
